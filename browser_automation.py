@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 # 导入所需的库
+from multiprocessing import Process, freeze_support
+
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -13,90 +15,13 @@ import random
 from fake_useragent import UserAgent
 import undetected_chromedriver as uc
 
-# 设置Chrome浏览器
-print("正在启动浏览器...")
-
-# 使用undetected_chromedriver来绕过反爬虫检测
-try:
-    # 方法1：使用undetected_chromedriver
-    print("尝试使用undetected_chromedriver...")
-    options = uc.ChromeOptions()
-
-    # 移除无头模式，但设置窗口位置到屏幕外或次要显示器
-    # options.add_argument("--headless")  # 禁用无头模式
-    options.add_argument("--window-position=2000,0")  # 将窗口移到屏幕外或次要显示器
-    options.add_argument("--window-size=1280,720")  # 设置适当的窗口大小
-
-    # 添加随机用户代理
-    try:
-        ua = UserAgent()
-        user_agent = ua.random
-    except:
-        user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-
-    options.add_argument(f'--user-agent={user_agent}')
-
-    # 添加其他选项来模拟真实浏览器
-    options.add_argument("--disable-blink-features=AutomationControlled")
-    options.add_argument("--disable-extensions")  # 禁用扩展
-    options.add_argument("--no-sandbox")  # 禁用沙盒模式
-
-    # 添加一些额外的参数来绕过检测
-    options.add_argument("--disable-infobars")
-    options.add_argument("--disable-dev-shm-usage")
-
-    # 使用undetected_chromedriver创建驱动
-    driver = uc.Chrome(options=options)
-
-except Exception as e:
-    print(f"undetected_chromedriver失败: {e}")
-    print("尝试使用标准Selenium方法...")
-
-    # 方法2：使用标准Selenium但添加反检测措施
-    options = webdriver.ChromeOptions()
-
-    # 移除无头模式，但设置窗口位置到屏幕外或次要显示器
-    # options.add_argument("--headless")  # 禁用无头模式
-    options.add_argument("--window-position=2000,0")  # 将窗口移到屏幕外或次要显示器
-    options.add_argument("--window-size=1280,720")  # 设置适当的窗口大小
-
-    # 添加随机用户代理
-    try:
-        ua = UserAgent()
-        user_agent = ua.random
-    except:
-        user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-
-    options.add_argument(f'--user-agent={user_agent}')
-
-    # 添加反爬虫检测选项
-    options.add_argument("--disable-blink-features=AutomationControlled")
-    options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    options.add_experimental_option("useAutomationExtension", False)
-
-    # 添加其他选项
-    options.add_argument("--disable-extensions")  # 禁用扩展
-    options.add_argument("--disable-gpu")  # 禁用GPU加速
-    options.add_argument("--no-sandbox")  # 禁用沙盒模式
-    options.add_argument("--disable-infobars")
-    options.add_argument("--disable-dev-shm-usage")
-
-    # 创建驱动
-    driver = webdriver.Chrome(options=options)
-
-    # 执行JavaScript来修改webdriver属性，进一步绕过检测
-    driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-    driver.execute_script("window.navigator.chrome = {runtime: {}}")
-    driver.execute_script("Object.defineProperty(navigator, 'languages', {get: () => ['zh-CN', 'zh', 'en']})")
-    driver.execute_script("Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]})")
-
 
 def random_sleep(min_seconds=1, max_seconds=5):
     """随机等待一段时间，模拟人类行为"""
     time.sleep(random.uniform(min_seconds, max_seconds))
 
 
-def main(message):
+def main(driver, message):
     succeed = False
     try:
         # 设置页面加载超时
@@ -237,15 +162,15 @@ def main(message):
         except Exception as e:
             print(f"处理服务条款弹窗时出错: {e}")
 
-        error_keywords = ["Connection errored out."]
-        page_source = driver.page_source
-        found_error_keyword = any(keyword in page_source for keyword in error_keywords)
+        # error_keywords = ["Connection errored out."]
+        # page_source = driver.page_source
+        # found_error_keyword = any(keyword in page_source for keyword in error_keywords)
 
-        if found_error_keyword:
-            driver.refresh()
-            random_sleep(5, 8)
-        else:
-            random_sleep(2, 5)
+        # if found_error_keyword:
+        #     driver.refresh()
+        #     random_sleep(5, 8)
+        # else:
+        random_sleep(2, 5)
 
         # 截图记录当前页面状态
         # driver.save_screenshot("after_consent_screenshot.png")
@@ -259,7 +184,7 @@ def main(message):
         #     random_sleep(0, 1)
         retry = 1
         succeed = False
-        while retry < 4:
+        while retry < 6:
             if clickDirectChat() is True:
                 random_sleep(1, 2)
                 if clickModel() is True:
@@ -1016,7 +941,85 @@ def setParameters():
 
 
 if __name__ == "__main__":
+    freeze_support()
+    # 设置Chrome浏览器
+    print("正在启动浏览器...")
+    # 使用undetected_chromedriver来绕过反爬虫检测
+    driver = None
+    try:
+        # 方法1：使用undetected_chromedriver
+        print("尝试使用undetected_chromedriver...")
+        options = uc.ChromeOptions()
+
+        # 移除无头模式，但设置窗口位置到屏幕外或次要显示器
+        # options.add_argument("--headless")  # 禁用无头模式
+        options.add_argument("--window-position=2000,0")  # 将窗口移到屏幕外或次要显示器
+        options.add_argument("--window-size=1280,720")  # 设置适当的窗口大小
+
+        # 添加随机用户代理
+        try:
+            ua = UserAgent()
+            user_agent = ua.random
+        except:
+            user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+        options.add_argument(f'--user-agent={user_agent}')
+
+        # 添加其他选项来模拟真实浏览器
+        options.add_argument("--disable-blink-features=AutomationControlled")
+        options.add_argument("--disable-extensions")  # 禁用扩展
+        options.add_argument("--no-sandbox")  # 禁用沙盒模式
+
+        # 添加一些额外的参数来绕过检测
+        options.add_argument("--disable-infobars")
+        options.add_argument("--disable-dev-shm-usage")
+
+        # 使用undetected_chromedriver创建驱动
+        driver = uc.Chrome(options=options)
+
+    except Exception as e:
+        print(f"undetected_chromedriver失败: {e}")
+        print("尝试使用标准Selenium方法...")
+
+        # 方法2：使用标准Selenium但添加反检测措施
+        options = webdriver.ChromeOptions()
+
+        # 移除无头模式，但设置窗口位置到屏幕外或次要显示器
+        # options.add_argument("--headless")  # 禁用无头模式
+        options.add_argument("--window-position=2000,0")  # 将窗口移到屏幕外或次要显示器
+        options.add_argument("--window-size=1280,720")  # 设置适当的窗口大小
+
+        # 添加随机用户代理
+        try:
+            ua = UserAgent()
+            user_agent = ua.random
+        except:
+            user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+        options.add_argument(f'--user-agent={user_agent}')
+
+        # 添加反爬虫检测选项
+        options.add_argument("--disable-blink-features=AutomationControlled")
+        options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        options.add_experimental_option("useAutomationExtension", False)
+
+        # 添加其他选项
+        options.add_argument("--disable-extensions")  # 禁用扩展
+        options.add_argument("--disable-gpu")  # 禁用GPU加速
+        options.add_argument("--no-sandbox")  # 禁用沙盒模式
+        options.add_argument("--disable-infobars")
+        options.add_argument("--disable-dev-shm-usage")
+
+        # 创建驱动
+        driver = webdriver.Chrome(options=options)
+
+        # 执行JavaScript来修改webdriver属性，进一步绕过检测
+        driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+        driver.execute_script("window.navigator.chrome = {runtime: {}}")
+        driver.execute_script("Object.defineProperty(navigator, 'languages', {get: () => ['zh-CN', 'zh', 'en']})")
+        driver.execute_script("Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]})")
+
     content = ''
     if len(sys.argv) >= 2:
         content = sys.argv[1]
-    main(content)
+    main(driver, content)
