@@ -1016,5 +1016,7 @@ def setParameters():
 
 
 if __name__ == "__main__":
+    content = ''
     if len(sys.argv) >= 2:
-        main(sys.argv[1])
+        content = sys.argv[1]
+    main(content)
