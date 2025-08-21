@@ -191,7 +191,7 @@ def main():
     visualizer = RealTimeAudioVisualizer(debug=args.debug, sound_detected_callback=sound_detected_callback)
 
     # 加载目标声音文件
-    if visualizer.load_target_sound("src/target_audio.wav"):
+    if visualizer.load_target_sound("target_audio.wav"):
         print("Sound detection enabled")
     else:
         print("Sound detection disabled - could not load target sound")
