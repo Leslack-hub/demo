@@ -18,11 +18,12 @@ from config import get_config
 class SystemAudioDetector:
     """使用buffer和活动窗口的音频检测器"""
 
-    def __init__(self, target_audio_path, debug_mode=False):
+    def __init__(self, target_audio_path, debug_mode=False, input_device=None):
         self.config = get_config()
         self.target_audio_path = target_audio_path
         self.is_running = False
         self.detection_count = 0
+        self.input_device = input_device
 
         # 如果通过命令行参数启用了调试模式，则覆盖配置
         if debug_mode:
@@ -31,11 +32,7 @@ class SystemAudioDetector:
         # 音频参数
         self.sample_rate = self.config['audio']['sample_rate']
         self.chunk_size = self.config['audio']['chunk_size']
-        self.window_duration = 2
-
-        # 活动窗口样本数
-        self.window_samples = int(self.window_duration * self.sample_rate)
-
+        
         # 先初始化一个临时的音频缓冲区
         self.audio_buffer = deque(maxlen=1024)
 
@@ -52,10 +49,15 @@ class SystemAudioDetector:
         # 加载目标音频
         self._load_target_audio()
 
+        # 根据目标音频时长调整窗口大小，但至少1秒，最多3秒
+        self.window_duration = max(min(self.target_duration * 1.5, 3), 1)
+        # 活动窗口样本数
+        self.window_samples = int(self.window_duration * self.sample_rate)
+
         # 根据目标音频时长计算缓冲区时长（目标音频时长的2倍）
         self.buffer_duration = self.target_duration * 2 + 1
-        # 确保缓冲区时长至少为5秒
-        # self.buffer_duration = max(self.buffer_duration, 3)
+        # 确保缓冲区时长至少为3秒，但不超过10秒
+        self.buffer_duration = max(min(self.buffer_duration, 10), 3)
         # 计算buffer样本数
         self.buffer_samples = int(self.buffer_duration * self.sample_rate)
 
@@ -86,12 +88,20 @@ class SystemAudioDetector:
         """音频输入回调函数"""
         if status:
             self.logger.warning(f"音频输入状态: {status}")
+            return
 
-        # 将新的音频数据添加到缓冲区
-        with self.buffer_lock:
-            # 将二维数组转换为一维数组（单声道）
-            audio_chunk = indata[:, 0] if indata.ndim > 1 else indata
-            self.audio_buffer.extend(audio_chunk)
+        try:
+            # 将新的音频数据添加到缓冲区
+            with self.buffer_lock:
+                # 将二维数组转换为一维数组（单声道）
+                audio_chunk = indata[:, 0] if indata.ndim > 1 else indata
+                
+                # 检查音频数据是否有效
+                if len(audio_chunk) > 0 and not np.all(audio_chunk == 0):
+                    self.audio_buffer.extend(audio_chunk)
+                    
+        except Exception as e:
+            self.logger.error(f"音频回调处理错误: {e}")
 
     def _get_audio_window(self):
         """从缓冲区获取活动窗口的音频数据"""
@@ -106,18 +116,49 @@ class SystemAudioDetector:
     def _start_audio_stream(self):
         """启动音频流"""
         try:
-            self.audio_stream = sd.InputStream(
-                samplerate=self.sample_rate,
-                channels=1,
-                dtype='float32',
-                blocksize=self.chunk_size,
-                callback=self._audio_callback
-            )
+            # 检查设备是否可用
+            if self.input_device is not None:
+                devices = sd.query_devices()
+                if self.input_device >= len(devices):
+                    self.logger.error(f"设备ID {self.input_device} 不存在")
+                    return False
+                    
+                device_info = devices[self.input_device]
+                if device_info['max_input_channels'] == 0:
+                    self.logger.error(f"设备 {device_info['name']} 不支持音频输入")
+                    return False
+            
+            # 构建音频流参数
+            stream_params = {
+                'samplerate': self.sample_rate,
+                'channels': 1,
+                'dtype': 'float32',
+                'blocksize': self.chunk_size,
+                'callback': self._audio_callback,
+                'latency': 'low'  # 降低延迟
+            }
+            
+            # 如果指定了输入设备，添加设备参数
+            if self.input_device is not None:
+                stream_params['device'] = (self.input_device, None)  # (input, output)
+                
+            self.audio_stream = sd.InputStream(**stream_params)
             self.audio_stream.start()
-            self.logger.info("音频流已启动")
+            
+            # 显示启动信息
+            if self.input_device is not None:
+                device_info = sd.query_devices()[self.input_device]
+                self.logger.info(f"音频流已启动 - 使用设备: {device_info['name']}")
+            else:
+                self.logger.info("音频流已启动 - 使用默认设备")
             return True
         except Exception as e:
             self.logger.error(f"启动音频流失败: {e}")
+            print(f"错误详情: {e}")
+            print("建议检查:")
+            print("1. 音频设备是否正常工作")
+            print("2. 是否有其他程序占用音频设备")
+            print("3. 系统音频权限是否已授予")
             return False
 
     def _stop_audio_stream(self):
@@ -235,7 +276,16 @@ class SystemAudioDetector:
 
         print("\n=== 音频检测器已启动 ===")
         print("使用实时音频流和活动窗口检测指定声音...")
-        print("请确保麦克风权限已开启")
+        
+        # 显示当前使用的音频设备
+        if self.input_device is not None:
+            device_info = sd.query_devices()[self.input_device]
+            print(f"输入设备: {device_info['name']} (设备ID: {self.input_device})")
+        else:
+            default_device = sd.query_devices()[sd.default.device[0]]
+            print(f"输入设备: {default_device['name']} (默认设备)")
+            
+        print("请确保相关音频权限已开启")
         print(f"检测阈值: {self.config['detection']['min_confidence']}")
         print(f"缓冲区大小: {self.buffer_duration}秒")
         print(f"活动窗口: {self.window_duration}秒")
@@ -329,28 +379,128 @@ class SystemAudioDetector:
             print(f"总共检测到 {self.detection_count} 次指定声音")
 
 
+def list_audio_devices():
+    """列出所有可用的音频设备"""
+    devices = sd.query_devices()
+    print("\n可用的音频设备:")
+    print("-" * 60)
+    
+    input_devices = []
+    for i, device in enumerate(devices):
+        device_type = []
+        if device['max_input_channels'] > 0:
+            device_type.append(f"{device['max_input_channels']}输入")
+            input_devices.append((i, device['name']))
+        if device['max_output_channels'] > 0:
+            device_type.append(f"{device['max_output_channels']}输出")
+            
+        marker = "*" if i == sd.default.device[0] else " "
+        print(f"{marker}{i:2d}: {device['name']:<30} ({', '.join(device_type)}")
+    
+    print("-" * 60)
+    print("* 表示默认设备")
+    print("\n可用的输入设备 (可用于 --input 参数):")
+    for device_id, name in input_devices:
+        print(f"  {device_id}: {name}")
+    print()
+    
+    return input_devices
+
+
+def parse_input_device(input_arg):
+    """解析输入设备参数"""
+    if input_arg is None:
+        return None
+        
+    # 尝试解析为数字
+    try:
+        device_id = int(input_arg)
+        devices = sd.query_devices()
+        if 0 <= device_id < len(devices):
+            device = devices[device_id]
+            if device['max_input_channels'] > 0:
+                return device_id
+            else:
+                print(f"错误: 设备 {device_id} ({device['name']}) 不支持音频输入")
+                return None
+        else:
+            print(f"错误: 设备 ID {device_id} 不存在")
+            return None
+    except ValueError:
+        # 尝试按名称匹配
+        devices = sd.query_devices()
+        for i, device in enumerate(devices):
+            if device['max_input_channels'] > 0 and input_arg.lower() in device['name'].lower():
+                return i
+        print(f"错误: 未找到匹配的输入设备: {input_arg}")
+        return None
+
+
 def main():
     """主函数"""
     # 解析命令行参数
     parser = argparse.ArgumentParser(description='音频检测器')
-    parser.add_argument('target', type=str, help='目标音频文件路径')
+    parser.add_argument('target', nargs='?', type=str, help='目标音频文件路径')
     parser.add_argument('--debug', action='store_true', help='启用调试模式')
+    parser.add_argument('--input', type=str, help='指定输入设备 (ID 或名称部分匹配)')
+    parser.add_argument('--list-devices', action='store_true', help='列出所有可用的音频设备')
     args = parser.parse_args()
+    
+    # 如果只是要列出设备
+    if args.list_devices:
+        try:
+            list_audio_devices()
+            return
+        except Exception as e:
+            print(f"查询设备失败: {e}")
+            return
+    
+    # 检查是否提供了目标文件
+    if not args.target:
+        parser.error("必须提供目标音频文件路径，或使用 --list-devices 查看设备列表")
 
     target_audio_path = args.target
-
     if not os.path.exists(target_audio_path):
         print(f"错误: 目标音频文件不存在: {target_audio_path}")
         return
+    
+    # 解析输入设备
+    input_device = None
+    if args.input:
+        input_device = parse_input_device(args.input)
+        if input_device is None:
+            print("使用 --list-devices 查看可用设备")
+            return
+        else:
+            device_info = sd.query_devices()[input_device]
+            print(f"使用输入设备: {input_device} - {device_info['name']}")
 
     # 检查sounddevice是否可用
     try:
-        import sounddevice as sd
         # 检查可用的音频设备
         devices = sd.query_devices()
         if not devices:
             print("错误: 未找到可用的音频设备")
             return
+            
+        # 检查是否有可用的输入设备
+        input_devices = [i for i, dev in enumerate(devices) if dev['max_input_channels'] > 0]
+        if not input_devices:
+            print("错误: 未找到可用的音频输入设备")
+            print("请检查麦克风是否正确连接")
+            return
+            
+        # 如果没有指定输入设备，建议使用默认输入设备
+        if input_device is None:
+            default_input = sd.default.device[0]
+            if default_input in input_devices:
+                print(f"提示: 将使用默认输入设备 {default_input} - {devices[default_input]['name']}")
+            else:
+                print("警告: 默认设备不支持音频输入，建议使用 --input 参数指定输入设备")
+                print("可用的输入设备:")
+                for dev_id in input_devices:
+                    print(f"  {dev_id}: {devices[dev_id]['name']}")
+                    
     except ImportError:
         print("错误: 需要安装sounddevice库")
         print("请运行: pip install sounddevice")
@@ -360,7 +510,7 @@ def main():
         return
 
     try:
-        detector = SystemAudioDetector(target_audio_path, debug_mode=args.debug)
+        detector = SystemAudioDetector(target_audio_path, debug_mode=args.debug, input_device=input_device)
         detector.start_detection()
     except Exception as e:
         print(f"检测器启动失败: {e}")
