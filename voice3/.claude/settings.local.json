@@ -9,7 +9,8 @@
       "Bash(brew install:*)",
       "Bash(timeout:*)",
       "Bash(kill:*)",
-      "Bash(jobs:*)"
+      "Bash(jobs:*)",
+      "Bash(rm:*)"
     ],
     "deny": [],
     "ask": []

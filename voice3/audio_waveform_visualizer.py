@@ -42,25 +42,72 @@ class RealTimeAudioVisualizer:
 
         # 声音检测相关属性
         self.target_sound = None
-        self.sound_detection_threshold = 0.05  # 稍微降低阈值以提高敏感度
+        self.sound_detection_threshold = 0.08  # 动态阈值基准
         self.audio_buffer = np.array([])
-        self.buffer_size = sample_rate * 5  # 5秒的音频缓冲区
+        self.buffer_size = sample_rate * 3  # 3秒的音频缓冲区
+        
+        # 新增：防止重复检测的机制
+        self.last_detection_time = 0
+        self.min_detection_interval = 1.0  # 最小检测间隔（秒）
+        self.detection_cooldown = False
+        
+        # 新增：多级检测阈值
+        self.primary_threshold = 0.10  # 主阈值（更严格）
+        self.secondary_threshold = 0.06  # 次阈值
+        self.correlation_history = []  # 保存最近的相关性值
+        self.history_size = 10
+        
+        # 新增：噪声抑制参数
+        self.noise_floor = 0.002  # 噪声基底
+        self.snr_threshold = 2.0  # 信噪比阈值
         
     def load_target_sound(self, file_path):
         """加载目标声音文件"""
         try:
             self.target_sound, _ = librosa.load(file_path, sr=self.sample_rate)
+            # 对目标声音进行预处理
+            self.target_sound = self.preprocess_audio(self.target_sound)
+            # 计算目标声音的特征
+            self.target_rms = np.sqrt(np.mean(self.target_sound ** 2))
             print(f"Target sound loaded. Duration: {len(self.target_sound) / self.sample_rate:.2f} seconds")
+            print(f"Target RMS: {self.target_rms:.4f}")
             return True
         except Exception as e:
             print(f"Error loading target sound: {e}")
             return False
     
+    def preprocess_audio(self, audio):
+        """预处理音频信号"""
+        # 去除直流偏移
+        audio = audio - np.mean(audio)
+        # 归一化
+        max_val = np.max(np.abs(audio))
+        if max_val > 0:
+            audio = audio / max_val
+        return audio
+    
     def detect_sound(self, audio_chunk):
-        """检测指定声音"""
+        """检测指定声音（改进版）"""
         if self.target_sound is None:
             return False
-            
+        
+        # 检查是否在冷却时间内
+        import time
+        current_time = time.time()
+        if self.detection_cooldown:
+            if current_time - self.last_detection_time < self.min_detection_interval:
+                return False
+            else:
+                self.detection_cooldown = False
+        
+        # 预处理输入音频块
+        audio_chunk = self.preprocess_audio(audio_chunk)
+        
+        # 计算输入的RMS，进行噪声检测
+        chunk_rms = np.sqrt(np.mean(audio_chunk ** 2))
+        if chunk_rms < self.noise_floor:
+            return False
+        
         # 将新的音频块添加到缓冲区
         self.audio_buffer = np.concatenate([self.audio_buffer, audio_chunk])
         
@@ -71,27 +118,74 @@ class RealTimeAudioVisualizer:
         # 如果缓冲区太小，无法进行有效检测
         if len(self.audio_buffer) < len(self.target_sound):
             return False
-            
-        # 使用交叉相关性检测匹配
+        
+        # 使用多种方法进行检测
         try:
-            correlation = scipy.signal.correlate(self.audio_buffer, self.target_sound, mode='valid')
+            # 方法1：标准化交叉相关
+            buffer_norm = self.preprocess_audio(self.audio_buffer[-len(self.target_sound)*2:])
+            correlation = scipy.signal.correlate(buffer_norm, self.target_sound, mode='valid')
+            
             if len(correlation) == 0:
                 return False
-                
-            normalized_correlation = correlation / (np.linalg.norm(self.audio_buffer) * np.linalg.norm(self.target_sound) + 1e-10)
             
-            # 检查是否有超过阈值的相关性
-            max_correlation = np.max(normalized_correlation)
-            if max_correlation > self.sound_detection_threshold:
-                # 重置缓冲区以避免重复检测
-                self.audio_buffer = np.array([])
+            # 改进的归一化方法
+            buffer_energy = np.sum(buffer_norm ** 2)
+            target_energy = np.sum(self.target_sound ** 2)
+            
+            if buffer_energy > 0 and target_energy > 0:
+                normalized_correlation = correlation / np.sqrt(buffer_energy * target_energy)
+            else:
+                return False
+            
+            max_correlation = np.max(np.abs(normalized_correlation))
+            
+            # 保存相关性历史
+            self.correlation_history.append(max_correlation)
+            if len(self.correlation_history) > self.history_size:
+                self.correlation_history.pop(0)
+            
+            # 计算动态阈值
+            if len(self.correlation_history) >= 3:
+                avg_correlation = np.mean(self.correlation_history)
+                std_correlation = np.std(self.correlation_history)
+                dynamic_threshold = max(self.secondary_threshold, 
+                                       avg_correlation + 2 * std_correlation)
+            else:
+                dynamic_threshold = self.primary_threshold
+            
+            # 方法2：计算信噪比
+            snr = chunk_rms / self.noise_floor if self.noise_floor > 0 else 0
+            
+            # 综合判断
+            is_detected = False
+            confidence = 0
+            
+            if max_correlation > self.primary_threshold and snr > self.snr_threshold:
+                # 高置信度检测
+                is_detected = True
+                confidence = max_correlation
+            elif max_correlation > dynamic_threshold and snr > self.snr_threshold * 0.7:
+                # 中等置信度检测
+                if len(self.correlation_history) >= 2:
+                    recent_max = max(self.correlation_history[-2:])
+                    if recent_max > self.secondary_threshold:
+                        is_detected = True
+                        confidence = max_correlation
+            
+            if is_detected:
+                # 设置冷却时间
+                self.last_detection_time = current_time
+                self.detection_cooldown = True
+                # 清理部分缓冲区
+                self.audio_buffer = self.audio_buffer[-len(self.target_sound):]
                 # 仅在debug模式下打印调试信息
                 if self.debug:
-                    print(f"Sound detected! Correlation: {max_correlation:.4f}")
+                    print(f"Sound detected! Correlation: {confidence:.4f}, SNR: {snr:.2f}, Threshold: {dynamic_threshold:.4f}")
                 return True
+                
         except Exception as e:
             print(f"Error in sound detection: {e}")
-            
+        
         return False
     
     def audio_callback(self, indata, frames, time, status):
