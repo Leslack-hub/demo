@@ -181,6 +181,7 @@ def main():
     # 解析命令行参数
     parser = argparse.ArgumentParser(description="实时音频波形可视化和声音检测")
     parser.add_argument("--debug", action="store_true", help="启用调试模式以显示波形图")
+    parser.add_argument("audio_file", nargs="?", default="target_audio.wav", help="目标音频文件路径")
     args = parser.parse_args()
     
     if args.debug:
@@ -194,10 +195,10 @@ def main():
     visualizer = RealTimeAudioVisualizer(debug=args.debug, sound_detected_callback=sound_detected_callback)
     
     # 加载目标声音文件
-    if visualizer.load_target_sound("target_audio.wav"):
-        print("Sound detection enabled")
+    if visualizer.load_target_sound(args.audio_file):
+        print(f"Sound detection enabled with file: {args.audio_file}")
     else:
-        print("Sound detection disabled - could not load target sound")
+        print(f"Sound detection disabled - could not load target sound: {args.audio_file}")
     
     # 开始可视化
     visualizer.start_visualization()
