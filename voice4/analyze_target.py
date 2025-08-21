@@ -5,16 +5,22 @@
 分析target.wav的详细特征，用于优化检测参数
 """
 
+import argparse
+
 import librosa
 import numpy as np
-import matplotlib.pyplot as plt
+
 from audio_features import extract_audio_features
 from config import get_config
 
-def analyze_target_audio():
+
+def analyze_target_audio(target_path=None):
     """分析目标音频的详细特征"""
     config = get_config()
-    target_path = config['file']['target_audio_path']
+    
+    # 如果没有提供目标路径，则使用配置文件中的默认路径
+    if target_path is None:
+        target_path = config['file']['target_audio_path']
     
     print(f"=== 分析目标音频: {target_path} ===")
     
@@ -85,4 +91,10 @@ def analyze_target_audio():
     return features
 
 if __name__ == "__main__":
-    analyze_target_audio()
+    # 解析命令行参数
+    parser = argparse.ArgumentParser(description='目标音频分析脚本')
+    parser.add_argument('--target', type=str, help='目标音频文件路径')
+    args = parser.parse_args()
+    
+    # 分析目标音频
+    analyze_target_audio(args.target)
