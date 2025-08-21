@@ -1,25 +1,42 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import subprocess
-import tempfile
 import os
 import time
 import numpy as np
 import librosa
 from pathlib import Path
 import logging
+import sounddevice as sd
+from collections import deque
+import threading
 from audio_features import extract_audio_features
 from config import get_config
 
 class SystemAudioDetector:
-    """使用系统音频录制的检测器"""
+    """使用buffer和活动窗口的音频检测器"""
     
     def __init__(self, target_audio_path):
         self.config = get_config()
         self.target_audio_path = target_audio_path
         self.is_running = False
         self.detection_count = 0
+        
+        # 音频参数
+        self.sample_rate = self.config['audio']['sample_rate']
+        self.chunk_size = self.config['audio']['chunk_size']
+        self.buffer_duration = self.config['performance']['buffer_size']  # 缓冲区时长(秒)
+        self.window_duration = 2  # 活动窗口时长(秒)
+        
+        # 计算buffer和window的样本数
+        self.buffer_samples = int(self.buffer_duration * self.sample_rate)
+        self.window_samples = int(self.window_duration * self.sample_rate)
+        
+        # 音频缓冲区 - 使用deque实现环形缓冲区
+        self.audio_buffer = deque(maxlen=self.buffer_samples)
+        
+        # 线程锁
+        self.buffer_lock = threading.Lock()
         
         # 设置日志
         logging.basicConfig(
@@ -51,38 +68,53 @@ class SystemAudioDetector:
             self.logger.error(f"加载目标音频失败: {e}")
             raise
     
-    def _record_audio_chunk(self, duration=2.0):
-        """录制一段音频"""
-        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
-            temp_path = temp_file.name
+    def _audio_callback(self, indata, frames, time, status):
+        """音频输入回调函数"""
+        if status:
+            self.logger.warning(f"音频输入状态: {status}")
         
-        try:
-            # 使用sox录制音频
-            cmd = [
-                'sox', '-d', '-r', str(self.config['audio']['sample_rate']),
-                '-c', '1', '-b', '16', temp_path, 'trim', '0', str(duration)
-            ]
-            
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=duration + 2)
-            
-            if result.returncode == 0:
-                # 加载录制的音频
-                audio_data, sr = librosa.load(temp_path, sr=self.config['audio']['sample_rate'])
-                return audio_data
-            else:
-                self.logger.warning(f"录音失败: {result.stderr}")
+        # 将新的音频数据添加到缓冲区
+        with self.buffer_lock:
+            # 将二维数组转换为一维数组（单声道）
+            audio_chunk = indata[:, 0] if indata.ndim > 1 else indata
+            self.audio_buffer.extend(audio_chunk)
+    
+    def _get_audio_window(self):
+        """从缓冲区获取活动窗口的音频数据"""
+        with self.buffer_lock:
+            if len(self.audio_buffer) < self.window_samples:
                 return None
-                
-        except subprocess.TimeoutExpired:
-            self.logger.warning("录音超时")
-            return None
+            
+            # 获取最新的窗口数据
+            window_data = np.array(list(self.audio_buffer)[-self.window_samples:])
+            return window_data
+    
+    def _start_audio_stream(self):
+        """启动音频流"""
+        try:
+            self.audio_stream = sd.InputStream(
+                samplerate=self.sample_rate,
+                channels=1,
+                dtype='float32',
+                blocksize=self.chunk_size,
+                callback=self._audio_callback
+            )
+            self.audio_stream.start()
+            self.logger.info("音频流已启动")
+            return True
         except Exception as e:
-            self.logger.warning(f"录音异常: {e}")
-            return None
-        finally:
-            # 清理临时文件
-            if os.path.exists(temp_path):
-                os.unlink(temp_path)
+            self.logger.error(f"启动音频流失败: {e}")
+            return False
+    
+    def _stop_audio_stream(self):
+        """停止音频流"""
+        try:
+            if hasattr(self, 'audio_stream') and self.audio_stream:
+                self.audio_stream.stop()
+                self.audio_stream.close()
+                self.logger.info("音频流已停止")
+        except Exception as e:
+            self.logger.error(f"停止音频流失败: {e}")
     
     def _calculate_similarity(self, features1, features2):
         """计算两个特征向量的相似度"""
@@ -173,23 +205,36 @@ class SystemAudioDetector:
     def start_detection(self):
         """开始检测"""
         self.is_running = True
-        self.logger.info("系统音频检测已启动")
+        self.logger.info("音频检测已启动")
         
-        print("\n=== 系统音频检测器已启动 ===")
-        print("使用系统录音功能检测指定声音...")
+        print("\n=== 音频检测器已启动 ===")
+        print("使用实时音频流和活动窗口检测指定声音...")
         print("请确保麦克风权限已开启")
         print(f"检测阈值: {self.config['detection']['min_confidence']}")
+        print(f"缓冲区大小: {self.buffer_duration}秒")
+        print(f"活动窗口: {self.window_duration}秒")
         print("按 Ctrl+C 停止检测\n")
         
-        chunk_count = 0
+        # 启动音频流
+        if not self._start_audio_stream():
+            print("启动音频流失败")
+            return
+        
+        window_count = 0
         
         try:
+            # 等待缓冲区填充
+            print("正在填充音频缓冲区...")
+            while len(self.audio_buffer) < self.window_samples and self.is_running:
+                time.sleep(0.1)
+            
+            print("开始检测...\n")
+            
             while self.is_running:
-                chunk_count += 1
+                window_count += 1
                 
-                # 录制音频片段
-                print(f"\r正在录制音频片段 {chunk_count}...", end="", flush=True)
-                audio_data = self._record_audio_chunk(duration=1.5)
+                # 获取活动窗口音频数据
+                audio_data = self._get_audio_window()
                 
                 if audio_data is not None:
                     # 检测
@@ -197,7 +242,8 @@ class SystemAudioDetector:
                     
                     # 显示状态
                     audio_level = similarities.get('audio_level', 0.0)
-                    print(f"\r音频电平: {audio_level:.4f} | 置信度: {confidence:.3f} | 片段: {chunk_count}", end="", flush=True)
+                    buffer_fill = len(self.audio_buffer) / self.buffer_samples * 100
+                    print(f"\r缓冲区: {buffer_fill:.1f}% | 音频电平: {audio_level:.4f} | 置信度: {confidence:.3f} | 窗口: {window_count}", end="", flush=True)
                     
                     if confidence > 0.15:
                         print(f"\n⚡ 检测中... 置信度: {confidence:.3f}")
@@ -210,7 +256,17 @@ class SystemAudioDetector:
                         if self.config['debug']['enable_debug']:
                             print(f"详细相似度: {', '.join([f'{k}:{v:.3f}' for k, v in similarities.items() if k != 'audio_level'])}")
                         
+                        # 清空缓冲区以避免重复触发
+                        with self.buffer_lock:
+                            self.audio_buffer.clear()
+                        print("已清空缓冲区，避免重复触发")
+                        
                         print("继续监听...\n")
+                        
+                        # 等待缓冲区重新填充
+                        print("等待缓冲区重新填充...")
+                        while len(self.audio_buffer) < self.window_samples and self.is_running:
+                            time.sleep(0.1)
                     
                     # 如果启用调试模式且置信度较高，显示详细信息
                     elif self.config['debug']['enable_debug'] and confidence > 0.1:
@@ -218,9 +274,9 @@ class SystemAudioDetector:
                         print(f"详细相似度: {', '.join([f'{k}:{v:.3f}' for k, v in similarities.items() if k != 'audio_level'])}")
                 
                 else:
-                    print(f"\r录音失败，重试中... 片段: {chunk_count}", end="", flush=True)
+                    print(f"\r等待音频数据... 窗口: {window_count}", end="", flush=True)
                 
-                time.sleep(0.1)  # 短暂暂停
+                time.sleep(0.1)  # 活动窗口更新间隔
                 
         except KeyboardInterrupt:
             print("\n\n收到停止信号...")
@@ -232,8 +288,16 @@ class SystemAudioDetector:
     def stop_detection(self):
         """停止检测"""
         self.is_running = False
-        self.logger.info("系统音频检测已停止")
-        print("\n系统音频检测已停止")
+        
+        # 停止音频流
+        self._stop_audio_stream()
+        
+        # 清空缓冲区
+        with self.buffer_lock:
+            self.audio_buffer.clear()
+        
+        self.logger.info("音频检测已停止")
+        print("\n音频检测已停止")
         if self.detection_count > 0:
             print(f"总共检测到 {self.detection_count} 次指定声音")
 
@@ -245,12 +309,20 @@ def main():
         print(f"错误: 目标音频文件不存在: {target_audio_path}")
         return
     
-    # 检查sox是否可用
+    # 检查sounddevice是否可用
     try:
-        subprocess.run(['sox', '--version'], capture_output=True, check=True)
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        print("错误: 需要安装sox音频工具")
-        print("请运行: brew install sox")
+        import sounddevice as sd
+        # 检查可用的音频设备
+        devices = sd.query_devices()
+        if not devices:
+            print("错误: 未找到可用的音频设备")
+            return
+    except ImportError:
+        print("错误: 需要安装sounddevice库")
+        print("请运行: pip install sounddevice")
+        return
+    except Exception as e:
+        print(f"音频设备检查失败: {e}")
         return
     
     try:

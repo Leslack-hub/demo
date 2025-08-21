@@ -41,7 +41,7 @@ DETECTION_CONFIG = {
         'chroma': 0.1,
         'mel': 0.1
     },
-    'min_confidence': 0.65,      # 最小置信度 (调整为0.65)
+    'min_confidence': 0.67,      # 最小置信度 (调整为0.65)
 }
 
 # 性能优化参数
