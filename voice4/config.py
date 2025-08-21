@@ -46,7 +46,6 @@ DETECTION_CONFIG = {
 
 # 性能优化参数
 PERFORMANCE_CONFIG = {
-    'buffer_size': 5,  # 音频缓冲区大小(秒)
     'feature_cache_size': 100,  # 特征缓存大小
     'enable_threading': True,  # 启用多线程
     'max_workers': 2,  # 最大工作线程数

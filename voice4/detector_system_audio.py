@@ -31,15 +31,13 @@ class SystemAudioDetector:
         # 音频参数
         self.sample_rate = self.config['audio']['sample_rate']
         self.chunk_size = self.config['audio']['chunk_size']
-        self.buffer_duration = self.config['performance']['buffer_size']  # 缓冲区时长(秒)
-        self.window_duration = 2  # 活动窗口时长(秒)
+        self.window_duration = 2
 
-        # 计算buffer和window的样本数
-        self.buffer_samples = int(self.buffer_duration * self.sample_rate)
+        # 活动窗口样本数
         self.window_samples = int(self.window_duration * self.sample_rate)
 
-        # 音频缓冲区 - 使用deque实现环形缓冲区
-        self.audio_buffer = deque(maxlen=self.buffer_samples)
+        # 先初始化一个临时的音频缓冲区
+        self.audio_buffer = deque(maxlen=1024)
 
         # 线程锁
         self.buffer_lock = threading.Lock()
@@ -54,6 +52,16 @@ class SystemAudioDetector:
         # 加载目标音频
         self._load_target_audio()
 
+        # 根据目标音频时长计算缓冲区时长（目标音频时长的2倍）
+        self.buffer_duration = self.target_duration * 2 + 1
+        # 确保缓冲区时长至少为5秒
+        # self.buffer_duration = max(self.buffer_duration, 3)
+        # 计算buffer样本数
+        self.buffer_samples = int(self.buffer_duration * self.sample_rate)
+
+        # 更新音频缓冲区大小
+        self.audio_buffer = deque(maxlen=self.buffer_samples)
+
     def _load_target_audio(self):
         """加载目标音频文件"""
         try:
@@ -63,8 +71,8 @@ class SystemAudioDetector:
                 sr=self.config['audio']['sample_rate']
             )
 
-            duration = len(audio_data) / sr
-            self.logger.info(f"加载目标音频: {self.target_audio_path}, 时长: {duration:.2f}秒")
+            self.target_duration = len(audio_data) / sr
+            self.logger.info(f"加载目标音频: {self.target_audio_path}, 时长: {self.target_duration:.2f}秒")
 
             # 提取特征
             self.target_features = extract_audio_features(audio_data, sr, self.config['feature'])
@@ -270,7 +278,7 @@ class SystemAudioDetector:
 
                     if detected:
                         self.detection_count += 1
-                        print(f"\n🎯 检测到指定声音! (第{self.detection_count}次)")
+                        print(f"🎯 检测到指定声音! (第{self.detection_count}次)")
                         print(f"置信度: {confidence:.3f}")
 
                         if self.config['debug']['enable_debug']:
@@ -280,10 +288,11 @@ class SystemAudioDetector:
                         # 清空缓冲区以避免重复触发
                         with self.buffer_lock:
                             self.audio_buffer.clear()
-                        print("继续监听..")
 
                         while len(self.audio_buffer) < self.window_samples and self.is_running:
-                            time.sleep(0.1)
+                            time.sleep(0.5)
+
+                        print("\n继续监听..")
 
                     # 如果启用调试模式且置信度较高，显示详细信息
                     elif self.config['debug']['enable_debug'] and confidence > 0.1:
