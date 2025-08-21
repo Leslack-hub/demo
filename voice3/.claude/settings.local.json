@@ -6,7 +6,10 @@
       "Bash(pip install:*)",
       "Bash(python:*)",
       "Bash(pip uninstall:*)",
-      "Bash(brew install:*)"
+      "Bash(brew install:*)",
+      "Bash(timeout:*)",
+      "Bash(kill:*)",
+      "Bash(jobs:*)"
     ],
     "deny": [],
     "ask": []
