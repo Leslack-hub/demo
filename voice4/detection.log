@@ -1,0 +1,85 @@
+2025-08-21 15:48:56,491 - SoundDeviceDetector - INFO - 加载目标音频: /Users/leslack/lsc/300_study/python/demo/voice4/target.wav, 时长: 0.80秒
+2025-08-21 15:48:56,940 - SoundDeviceDetector - INFO - 目标音频特征提取完成
+2025-08-21 15:48:56,940 - SoundDeviceDetector - INFO - SoundDevice音频检测器初始化完成
+2025-08-21 15:49:00,691 - SoundDeviceDetector - INFO - 音频检测已启动
+2025-08-21 15:50:03,230 - SoundDeviceDetector - INFO - 正在停止音频检测...
+2025-08-21 15:50:03,464 - SoundDeviceDetector - INFO - 音频检测已停止
+2025-08-21 15:50:26,452 - SoundDeviceDetector - INFO - 加载目标音频: /Users/leslack/lsc/300_study/python/demo/voice4/target.wav, 时长: 0.80秒
+2025-08-21 15:50:27,009 - SoundDeviceDetector - INFO - 目标音频特征提取完成
+2025-08-21 15:50:27,009 - SoundDeviceDetector - INFO - SoundDevice音频检测器初始化完成
+2025-08-21 15:50:27,397 - SoundDeviceDetector - INFO - 音频检测已启动
+2025-08-21 15:51:00,616 - SoundDeviceDetector - INFO - 正在停止音频检测...
+2025-08-21 15:51:00,846 - SoundDeviceDetector - INFO - 音频检测已停止
+2025-08-21 15:51:16,767 - SoundDeviceDetector - INFO - 加载目标音频: /Users/leslack/lsc/300_study/python/demo/voice4/target.wav, 时长: 0.80秒
+2025-08-21 15:51:17,090 - SoundDeviceDetector - INFO - 目标音频特征提取完成
+2025-08-21 15:51:17,091 - SoundDeviceDetector - INFO - SoundDevice音频检测器初始化完成
+2025-08-21 15:51:17,418 - SoundDeviceDetector - INFO - 音频检测已启动
+2025-08-21 15:51:27,290 - SoundDeviceDetector - INFO - 正在停止音频检测...
+2025-08-21 15:51:27,458 - SoundDeviceDetector - INFO - 音频检测已停止
+2025-08-21 15:52:29,124 - SoundDeviceDetector - INFO - 加载目标音频: /Users/leslack/lsc/300_study/python/demo/voice4/target.wav, 时长: 0.80秒
+2025-08-21 15:52:29,727 - SoundDeviceDetector - INFO - 目标音频特征提取完成
+2025-08-21 15:52:29,749 - SoundDeviceDetector - INFO - SoundDevice音频检测器初始化完成
+2025-08-21 15:52:29,959 - SoundDeviceDetector - INFO - 音频检测已启动
+2025-08-21 15:53:13,037 - SoundDeviceDetector - INFO - 正在停止音频检测...
+2025-08-21 15:53:13,264 - SoundDeviceDetector - INFO - 音频检测已停止
+2025-08-21 15:54:58,079 - WaveformDetector - INFO - 加载目标音频: /Users/leslack/lsc/300_study/python/demo/voice4/target.wav, 时长: 0.80秒
+2025-08-21 15:54:58,675 - WaveformDetector - INFO - 目标音频特征提取完成
+2025-08-21 15:54:58,675 - WaveformDetector - INFO - 带波形显示的音频检测器初始化完成
+2025-08-21 15:55:17,839 - WaveformDetector - INFO - 音频检测已启动
+2025-08-21 15:55:39,998 - WaveformDetector - INFO - 正在停止音频检测...
+2025-08-21 15:55:40,163 - WaveformDetector - INFO - 音频检测已停止
+2025-08-21 15:55:42,694 - WaveformDetector - INFO - 正在停止音频检测...
+2025-08-21 15:55:42,694 - WaveformDetector - INFO - 音频检测已停止
+2025-08-21 15:58:22,833 - WaveformDetector - INFO - 加载目标音频: /Users/leslack/lsc/300_study/python/demo/voice4/target.wav, 时长: 0.80秒
+2025-08-21 15:58:23,180 - WaveformDetector - INFO - 目标音频特征提取完成
+2025-08-21 15:58:23,180 - WaveformDetector - INFO - 带波形显示的音频检测器初始化完成
+2025-08-21 15:58:33,342 - WaveformDetector - INFO - 音频检测已启动
+2025-08-21 15:59:08,993 - WaveformDetector - INFO - 正在停止音频检测...
+2025-08-21 15:59:09,179 - WaveformDetector - INFO - 音频检测已停止
+2025-08-21 15:59:33,968 - WaveformDetector - INFO - 加载目标音频: /Users/leslack/lsc/300_study/python/demo/voice4/target.wav, 时长: 0.80秒
+2025-08-21 15:59:34,710 - WaveformDetector - INFO - 目标音频特征提取完成
+2025-08-21 15:59:34,710 - WaveformDetector - INFO - 带波形显示的音频检测器初始化完成
+2025-08-21 15:59:39,256 - WaveformDetector - INFO - 音频检测已启动
+2025-08-21 16:00:15,078 - WaveformDetector - INFO - 正在停止音频检测...
+2025-08-21 16:00:15,244 - WaveformDetector - INFO - 音频检测已停止
+2025-08-21 16:00:18,411 - WaveformDetector - INFO - 音频检测已启动
+2025-08-21 16:00:38,826 - WaveformDetector - INFO - 正在停止音频检测...
+2025-08-21 16:00:39,028 - WaveformDetector - INFO - 音频检测已停止
+2025-08-21 16:00:41,250 - WaveformDetector - INFO - 正在停止音频检测...
+2025-08-21 16:00:41,250 - WaveformDetector - INFO - 音频检测已停止
+2025-08-21 16:00:48,844 - WaveformDetector - INFO - 加载目标音频: /Users/leslack/lsc/300_study/python/demo/voice4/target.wav, 时长: 0.80秒
+2025-08-21 16:00:49,420 - WaveformDetector - INFO - 目标音频特征提取完成
+2025-08-21 16:00:49,422 - WaveformDetector - INFO - 带波形显示的音频检测器初始化完成
+2025-08-21 16:00:54,047 - WaveformDetector - INFO - 音频检测已启动
+2025-08-21 16:01:00,843 - WaveformDetector - INFO - 正在停止音频检测...
+2025-08-21 16:01:01,039 - WaveformDetector - INFO - 音频检测已停止
+2025-08-21 16:01:01,477 - WaveformDetector - INFO - 正在停止音频检测...
+2025-08-21 16:01:01,477 - WaveformDetector - INFO - 音频检测已停止
+2025-08-21 16:02:50,576 - SimpleDetector - INFO - 加载目标音频: /Users/leslack/lsc/300_study/python/demo/voice4/target.wav, 时长: 0.80秒
+2025-08-21 16:02:51,248 - SimpleDetector - INFO - 目标音频特征提取完成
+2025-08-21 16:02:51,248 - SimpleDetector - INFO - 简化版音频检测器初始化完成
+2025-08-21 16:02:52,209 - SimpleDetector - INFO - 音频检测已启动
+2025-08-21 16:03:23,278 - SimpleDetector - INFO - 正在停止音频检测...
+2025-08-21 16:03:23,530 - SimpleDetector - INFO - 音频检测已停止
+2025-08-21 16:05:01,460 - SimpleDetector - INFO - 加载目标音频: /Users/leslack/lsc/300_study/python/demo/voice4/target.wav, 时长: 0.80秒
+2025-08-21 16:05:02,388 - SimpleDetector - INFO - 目标音频特征提取完成
+2025-08-21 16:05:02,388 - SimpleDetector - INFO - 简化版音频检测器初始化完成
+2025-08-21 16:05:02,627 - SimpleDetector - INFO - 音频检测已启动
+2025-08-21 16:05:22,063 - SimpleDetector - INFO - 正在停止音频检测...
+2025-08-21 16:05:22,229 - SimpleDetector - INFO - 音频检测已停止
+2025-08-21 16:08:05,148 - SimpleDetector - INFO - 加载目标音频: /Users/leslack/lsc/300_study/python/demo/voice4/target.wav, 时长: 0.80秒
+2025-08-21 16:08:05,377 - SimpleDetector - INFO - 目标音频特征提取完成
+2025-08-21 16:08:05,377 - SimpleDetector - INFO - 简化版音频检测器初始化完成
+2025-08-21 16:08:05,718 - SimpleDetector - INFO - 音频检测已启动
+2025-08-21 16:08:32,891 - SimpleDetector - INFO - 正在停止音频检测...
+2025-08-21 16:08:33,119 - SimpleDetector - INFO - 音频检测已停止
+2025-08-21 16:09:33,670 - SimpleDetector - INFO - 加载目标音频: /Users/leslack/lsc/300_study/python/demo/voice4/target.wav, 时长: 0.80秒
+2025-08-21 16:09:34,087 - SimpleDetector - INFO - 目标音频特征提取完成
+2025-08-21 16:09:34,087 - SimpleDetector - INFO - 简化版音频检测器初始化完成
+2025-08-21 16:09:34,230 - SimpleDetector - INFO - 音频检测已启动
+2025-08-21 16:38:58,090 - SimpleDetector - INFO - 加载目标音频: /Users/leslack/lsc/300_study/python/demo/voice4/target.wav, 时长: 0.80秒
+2025-08-21 16:38:58,298 - SimpleDetector - INFO - 目标音频特征提取完成
+2025-08-21 16:38:58,298 - SimpleDetector - INFO - 简化版音频检测器初始化完成
+2025-08-21 16:38:59,156 - SimpleDetector - INFO - 音频检测已启动
+2025-08-21 16:39:17,805 - SimpleDetector - INFO - 正在停止音频检测...
+2025-08-21 16:39:17,993 - SimpleDetector - INFO - 音频检测已停止
