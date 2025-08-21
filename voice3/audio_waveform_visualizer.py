@@ -218,6 +218,7 @@ class RealTimeAudioVisualizer:
                 self.sound_detected_text.set_color('blue')
             # 调用回调函数（如果已设置）
             if self.sound_detected_callback:
+                self.audio_buffer = np.array([])
                 self.sound_detected_callback()
         else:
             # 仅在debug模式下更新文本显示
