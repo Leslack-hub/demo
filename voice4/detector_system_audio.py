@@ -14,16 +14,39 @@ import argparse
 from audio_features import extract_audio_features
 from config import get_config
 
+# 添加matplotlib导入用于波形图可视化
+import matplotlib
+import matplotlib.pyplot as plt
+# 设置字体避免乱码
+plt.rcParams['font.sans-serif'] = ['Arial', 'DejaVu Sans', 'Liberation Sans', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
+# 设置字体大小和样式以提高可读性
+plt.rcParams['font.size'] = 10
+plt.rcParams['axes.titlesize'] = 12
+plt.rcParams['axes.labelsize'] = 10
+plt.rcParams['xtick.labelsize'] = 8
+plt.rcParams['ytick.labelsize'] = 8
+# 设置更好的字体渲染以避免乱码
+plt.rcParams['pdf.fonttype'] = 42
+plt.rcParams['ps.fonttype'] = 42
+plt.rcParams['svg.fonttype'] = 'none'
+# 优化matplotlib性能
+plt.rcParams['path.simplify'] = True
+plt.rcParams['path.simplify_threshold'] = 0.1
+plt.rcParams['agg.path.chunksize'] = 10000
+import matplotlib.animation as animation
+
 
 class SystemAudioDetector:
     """使用buffer和活动窗口的音频检测器"""
 
-    def __init__(self, target_audio_path, debug_mode=False, input_device=None):
+    def __init__(self, target_audio_path, debug_mode=False, input_device=None, detection_callback=None):
         self.config = get_config()
         self.target_audio_path = target_audio_path
         self.is_running = False
         self.detection_count = 0
         self.input_device = input_device
+        self.detection_callback = detection_callback  # 添加回调函数支持
 
         # 如果通过命令行参数启用了调试模式，则覆盖配置
         if debug_mode:
@@ -38,6 +61,13 @@ class SystemAudioDetector:
 
         # 线程锁
         self.buffer_lock = threading.Lock()
+
+        # 波形图相关属性
+        self.fig = None
+        self.ax = None
+        self.line = None
+        self.detection_text = None
+        self.waveform_data = None
 
         # 设置日志
         logging.basicConfig(
@@ -63,6 +93,13 @@ class SystemAudioDetector:
 
         # 更新音频缓冲区大小
         self.audio_buffer = deque(maxlen=self.buffer_samples)
+
+        # 初始化波形数据缓冲区（用于可视化）
+        self.waveform_buffer_size = int(0.3 * self.sample_rate)  # 0.3秒的波形数据，更适合实时显示
+        self.waveform_data = deque(maxlen=self.waveform_buffer_size)
+        
+        # 初始化图形刷新时间戳
+        self._last_flush = 0
 
     def _load_target_audio(self):
         """加载目标音频文件"""
@@ -99,6 +136,16 @@ class SystemAudioDetector:
                 # 检查音频数据是否有效
                 if len(audio_chunk) > 0 and not np.all(audio_chunk == 0):
                     self.audio_buffer.extend(audio_chunk)
+                    
+                    # 在调试模式下，也更新波形数据缓冲区
+                    if self.config['debug']['enable_debug']:
+                        self.waveform_data.extend(audio_chunk)
+                        # 限制波形数据长度以提高性能
+                        if len(self.waveform_data) > 2000:
+                            # 保留最新的数据以提高显示性能
+                            while len(self.waveform_data) > 2000:
+                                self.waveform_data.popleft()
+                        # 由于使用了maxlen，deque会自动处理大小限制，无需手动截取
                     
         except Exception as e:
             self.logger.error(f"音频回调处理错误: {e}")
@@ -174,6 +221,9 @@ class SystemAudioDetector:
     def _calculate_similarity(self, features1, features2):
         """计算两个特征向量的相似度"""
         try:
+            # 获取权重配置
+            weights = self.config['detection']['confidence_weight']
+            
             # 处理MFCC相似度 - 使用统计特征而不是直接比较
             mfcc1_mean = np.mean(features1['mfcc'], axis=1)
             mfcc2_mean = np.mean(features2['mfcc'], axis=1)
@@ -190,7 +240,14 @@ class SystemAudioDetector:
                     'chroma': 0.0,
                     'mel': 0.0
                 }
-                return 0.0, similarities
+                # 即使MFCC不达标，也返回实际的相似度值而不是0，以便调试
+                confidence = (
+                        weights['mfcc'] * max(0, mfcc_sim) +
+                        weights['spectral'] * 0.0 +
+                        weights['chroma'] * 0.0 +
+                        weights['mel'] * 0.0
+                )
+                return confidence, similarities
 
             # 频谱质心相似度
             spectral1 = np.mean(features1['spectral_centroid'])
@@ -214,16 +271,18 @@ class SystemAudioDetector:
             # 计算加权平均相似度 - 只有所有特征都为正值时才计算
             weights = self.config['detection']['confidence_weight']
 
+            # 计算加权平均相似度
+            confidence = (
+                    weights['mfcc'] * max(0, mfcc_sim) +
+                    weights['spectral'] * max(0, spectral_sim) +
+                    weights['chroma'] * max(0, chroma_sim) +
+                    weights['mel'] * max(0, mel_sim)
+            )
+            
             # 检查是否主要特征达到基本要求（根据目标音频特征调整）
-            if (mfcc_sim < 0.5 or spectral_sim < 0.2 or mel_sim < 0.5):
-                confidence = 0.0
-            else:
-                confidence = (
-                        weights['mfcc'] * max(0, mfcc_sim) +
-                        weights['spectral'] * max(0, spectral_sim) +
-                        weights['chroma'] * max(0, chroma_sim) +
-                        weights['mel'] * max(0, mel_sim)
-                )
+            # 如果关键特征太低，降低置信度
+            if (mfcc_sim < 0.3 or spectral_sim < 0.1 or mel_sim < 0.3):
+                confidence *= 0.5  # 降低置信度而不是直接设为0
 
             similarities = {
                 'mfcc': mfcc_sim,
@@ -269,6 +328,103 @@ class SystemAudioDetector:
             self.logger.error(f"检测过程出错: {e}")
             return False, 0.0, {'error': str(e)}
 
+    def _init_waveform_plot(self):
+        """初始化波形图"""
+        # 初始化图形变量
+        self.fig = None
+        self.ax = None
+        self.line = None
+        self.activity_text = None
+        self.detection_text = None
+        
+        if self.config['debug']['enable_debug']:
+            # 创建图形和轴
+            self.fig, self.ax = plt.subplots(figsize=(12, 5))
+            
+            # 创建波形线
+            self.line, = self.ax.plot([], [], 'b-', linewidth=1.0, alpha=0.8)
+            
+            # 设置坐标轴
+            display_samples = min(3000, self.waveform_buffer_size)  # 限制显示的样本数
+            self.ax.set_xlim(0, display_samples)
+            self.ax.set_ylim(-0.1, 0.1)  # 初始范围较小
+            self.ax.set_xlabel("Samples")
+            self.ax.set_ylabel("Amplitude")
+            self.ax.set_title("Real-time Audio Waveform")
+            self.ax.grid(True, alpha=0.3)
+            
+            # 添加活动指示文本 (左上角)
+            self.activity_text = self.ax.text(0.02, 0.95, 'Audio: Idle', transform=self.ax.transAxes, 
+                                            fontsize=10, verticalalignment='top', horizontalalignment='left',
+                                            bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8),
+                                            zorder=10, clip_on=False)
+            # 添加检测指示文本 (左上角，稍低位置)
+            self.detection_text = self.ax.text(0.02, 0.85, '', transform=self.ax.transAxes,
+                                             fontsize=10, verticalalignment='top', horizontalalignment='left',
+                                             bbox=dict(boxstyle="round,pad=0.3", facecolor="yellow", alpha=0.7),
+                                             zorder=10, clip_on=False)
+            
+            # 启用交互模式
+            plt.ion()
+            plt.show(block=False)
+            
+            # 初始化图形刷新时间戳
+            self._last_flush = 0
+            self._last_plot_update = 0
+    
+    def _clear_console_line(self):
+        """清除控制台当前行以避免文本重叠"""
+        if self.config['debug']['enable_debug']:
+            # 输出足够多的空格来覆盖之前的文本
+            print("\r" + " " * 120, end="\r", flush=True)
+    
+    def _update_waveform_plot(self):
+        """更新波形图"""
+        if self.config['debug']['enable_debug'] and self.line and self.fig:
+            # 限制更新频率以提高性能 (提高到20 FPS)
+            import time
+            current_time = time.time()
+            if hasattr(self, '_last_plot_update') and (current_time - self._last_plot_update) < 0.05:  # 20 FPS
+                return
+            self._last_plot_update = current_time
+            
+            with self.buffer_lock:
+                if len(self.waveform_data) > 0:
+                    # 获取最新的固定数量样本以提高性能
+                    max_display_samples = min(3000, len(self.waveform_data))  # 减少样本数提高性能
+                    if len(self.waveform_data) > max_display_samples:
+                        # 取最新的样本
+                        data_list = list(self.waveform_data)
+                        data = np.array(data_list[-max_display_samples:])
+                    else:
+                        data = np.array(list(self.waveform_data))
+                    
+                    # 更新波形数据
+                    x = np.arange(len(data))
+                    self.line.set_data(x, data)
+                    
+                    # 动态调整Y轴范围以提高可视化效果
+                    if len(data) > 0:
+                        max_val = np.max(np.abs(data))
+                        y_range = max(max_val * 1.2, 0.1)  # 设置最小范围
+                        self.ax.set_ylim(-y_range, y_range)
+                    
+                    # 更新X轴范围
+                    self.ax.set_xlim(0, len(data))
+            
+            # 注意：活动状态更新已移至检测循环中处理，避免重复更新
+            
+            # 刷新图形
+            try:
+                # 使用更高效的绘图方法
+                self.fig.canvas.draw_idle()
+                # 减少flush_events调用频率以提高性能
+                if hasattr(self, '_last_flush') and (time.time() - self._last_flush) > 0.05:
+                    self.fig.canvas.flush_events()
+                    self._last_flush = time.time()
+            except:
+                pass  # 忽略绘图错误
+
     def start_detection(self):
         """开始检测"""
         self.is_running = True
@@ -291,6 +447,10 @@ class SystemAudioDetector:
         print(f"活动窗口: {self.window_duration}秒")
         print("按 Ctrl+C 停止检测\n")
 
+        # 初始化波形图
+        if self.config['debug']['enable_debug']:
+            self._init_waveform_plot()
+
         # 启动音频流
         if not self._start_audio_stream():
             print("启动音频流失败")
@@ -302,7 +462,7 @@ class SystemAudioDetector:
             # 等待缓冲区填充
             print("正在填充音频缓冲区...")
             while len(self.audio_buffer) < self.window_samples and self.is_running:
-                time.sleep(0.1)
+                time.sleep(0.3)
 
             print("开始检测...\n")
 
@@ -320,20 +480,56 @@ class SystemAudioDetector:
                     if self.config['debug']['enable_debug']:
                         audio_level = similarities.get('audio_level', 0.0)
                         buffer_fill = len(self.audio_buffer) / self.buffer_samples * 100
-                        print(
-                            f"\r缓冲区: {buffer_fill:.1f}% | 音频电平: {audio_level:.4f} | 置信度: {confidence:.3f} | 窗口: {window_count}",
-                            end="", flush=True)
-                        if confidence > 0.15:
-                            print(f"\n⚡ 检测中... 置信度: {confidence:.3f}")
+                        # 使用完整的行宽并清除行尾以避免文本重叠
+                        status_text = f"缓冲区: {buffer_fill:.1f}% | 音频电平: {audio_level:.4f} | 置信度: {confidence:.3f} | 窗口: {window_count}"
+                        # 确保文本不会重叠，使用固定宽度并清除多余字符
+                        print(f"\r{status_text:<120}", end="", flush=True)
+                        
+                        # 更新检测指示文本
+                        if self.detection_text:
+                            if detected:
+                                self.detection_text.set_text(f'Hit! confidence level: {confidence:.3f}')
+                                # 保持黄色背景不变
+                            elif confidence > 0.15:
+                                self.detection_text.set_text(f'progress...confidence level: {confidence:.3f}')
+                                # 保持黄色背景不变
+                            else:
+                                self.detection_text.set_text('')
+                        
+                        # 更新活动状态文本
+                        if self.activity_text:
+                            audio_level = similarities.get('audio_level', 0.0)
+                            if audio_level > 0.01:  # 活动阈值
+                                self.activity_text.set_text("Audio: Active")
+                                # 设置红色背景表示活动状态
+                                self.activity_text.set_bbox(dict(boxstyle="round,pad=0.3", facecolor="red", alpha=0.7))
+                            else:
+                                self.activity_text.set_text("Audio: Idle")
+                                # 设置白色背景表示空闲状态
+                                self.activity_text.set_bbox(dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8))
+                        
+                        # 更新波形图（降低更新频率以提高性能）
+                        if window_count % 3 == 0:  # 每3个窗口更新一次波形图
+                            self._update_waveform_plot()
 
+                    # 处理检测结果（无论是否在调试模式下都应该处理）
                     if detected:
                         self.detection_count += 1
-                        print(f"🎯 检测到指定声音! (第{self.detection_count}次)")
+                        # 清除当前行以避免文本重叠
+                        self._clear_console_line()
+                        print(f"\n🎯 检测到指定声音! (第{self.detection_count}次)")
                         print(f"置信度: {confidence:.3f}")
 
                         if self.config['debug']['enable_debug']:
                             print(
                                 f"详细相似度: {', '.join([f'{k}:{v:.3f}' for k, v in similarities.items() if k != 'audio_level'])}")
+
+                        # 调用回调函数（如果已设置）
+                        if self.detection_callback:
+                            try:
+                                self.detection_callback()
+                            except Exception as e:
+                                self.logger.error(f"回调函数执行错误: {e}")
 
                         # 清空缓冲区以避免重复触发
                         with self.buffer_lock:
@@ -346,14 +542,19 @@ class SystemAudioDetector:
 
                     # 如果启用调试模式且置信度较高，显示详细信息
                     elif self.config['debug']['enable_debug'] and confidence > 0.1:
+                        # 清除当前行以避免文本重叠
+                        self._clear_console_line()
                         print(f"\n调试信息 - 置信度: {confidence:.3f}")
                         print(
                             f"详细相似度: {', '.join([f'{k}:{v:.3f}' for k, v in similarities.items() if k != 'audio_level'])}")
 
                 else:
-                    print(f"\r等待音频数据... 窗口: {window_count}", end="", flush=True)
+                    # 使用完整的行宽并清除行尾以避免文本重叠
+                    status_text = f"等待音频数据... 窗口: {window_count}"
+                    # 确保文本不会重叠，使用固定宽度并清除多余字符
+                    print(f"\r{status_text:<120}", end="", flush=True)
 
-                time.sleep(0.1)  # 活动窗口更新间隔
+                time.sleep(0.3)  # 活动窗口更新间隔
 
         except KeyboardInterrupt:
             print("\n\n收到停止信号...")
@@ -373,7 +574,16 @@ class SystemAudioDetector:
         with self.buffer_lock:
             self.audio_buffer.clear()
 
+        # 关闭图形窗口（如果存在）
+        if self.config['debug']['enable_debug'] and self.fig:
+            try:
+                plt.close(self.fig)
+            except:
+                pass  # 忽略关闭错误
+
         self.logger.info("音频检测已停止")
+        # 清除当前行以避免文本重叠
+        self._clear_console_line()
         print("\n音频检测已停止")
         if self.detection_count > 0:
             print(f"总共检测到 {self.detection_count} 次指定声音")
