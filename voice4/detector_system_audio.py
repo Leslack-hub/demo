@@ -14,9 +14,24 @@ import argparse
 from audio_features import extract_audio_features
 from config import get_config
 
+# 性能监控相关导入
+import functools
+
 # 添加matplotlib导入用于波形图可视化
 import matplotlib
 import matplotlib.pyplot as plt
+
+# 性能监控装饰器
+def performance_monitor(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        result = func(*args, **kwargs)
+        end_time = time.time()
+        if hasattr(args[0], 'logger'):
+            args[0].logger.debug(f"{func.__name__} executed in {end_time - start_time:.4f} seconds")
+        return result
+    return wrapper
 # 设置字体避免乱码
 plt.rcParams['font.sans-serif'] = ['Arial', 'DejaVu Sans', 'Liberation Sans', 'sans-serif']
 plt.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
@@ -95,12 +110,13 @@ class SystemAudioDetector:
         self.audio_buffer = deque(maxlen=self.buffer_samples)
 
         # 初始化波形数据缓冲区（用于可视化）
-        self.waveform_buffer_size = int(0.3 * self.sample_rate)  # 0.3秒的波形数据，更适合实时显示
+        self.waveform_buffer_size = int(0.2 * self.sample_rate)  # 减少到0.2秒的波形数据，提高性能
         self.waveform_data = deque(maxlen=self.waveform_buffer_size)
         
         # 初始化图形刷新时间戳
         self._last_flush = 0
 
+    @performance_monitor
     def _load_target_audio(self):
         """加载目标音频文件"""
         try:
@@ -218,6 +234,7 @@ class SystemAudioDetector:
         except Exception as e:
             self.logger.error(f"停止音频流失败: {e}")
 
+    @performance_monitor
     def _calculate_similarity(self, features1, features2):
         """计算两个特征向量的相似度"""
         try:
@@ -297,6 +314,7 @@ class SystemAudioDetector:
             self.logger.error(f"相似度计算错误: {e}")
             return 0.0, {}
 
+    @performance_monitor
     def _detect_in_audio(self, audio_data):
         """在音频数据中检测目标声音"""
         if audio_data is None or len(audio_data) == 0:
@@ -381,17 +399,17 @@ class SystemAudioDetector:
     def _update_waveform_plot(self):
         """更新波形图"""
         if self.config['debug']['enable_debug'] and self.line and self.fig:
-            # 限制更新频率以提高性能 (提高到20 FPS)
+            # 限制更新频率以提高性能 (降低到10 FPS)
             import time
             current_time = time.time()
-            if hasattr(self, '_last_plot_update') and (current_time - self._last_plot_update) < 0.05:  # 20 FPS
+            if hasattr(self, '_last_plot_update') and (current_time - self._last_plot_update) < 0.1:  # 10 FPS
                 return
             self._last_plot_update = current_time
             
             with self.buffer_lock:
                 if len(self.waveform_data) > 0:
                     # 获取最新的固定数量样本以提高性能
-                    max_display_samples = min(3000, len(self.waveform_data))  # 减少样本数提高性能
+                    max_display_samples = min(2000, len(self.waveform_data))  # 进一步减少样本数提高性能
                     if len(self.waveform_data) > max_display_samples:
                         # 取最新的样本
                         data_list = list(self.waveform_data)
@@ -462,7 +480,7 @@ class SystemAudioDetector:
             # 等待缓冲区填充
             print("正在填充音频缓冲区...")
             while len(self.audio_buffer) < self.window_samples and self.is_running:
-                time.sleep(0.3)
+                time.sleep(0.5)  # 增加等待时间以减少CPU使用
 
             print("开始检测...\n")
 
@@ -476,8 +494,8 @@ class SystemAudioDetector:
                     # 检测
                     detected, confidence, similarities = self._detect_in_audio(audio_data)
 
-                    # 显示状态（仅在调试模式下）
-                    if self.config['debug']['enable_debug']:
+                    # 显示状态（仅在调试模式下，降低更新频率）
+                    if self.config['debug']['enable_debug'] and window_count % 3 == 0:  # 每3个窗口更新一次状态显示
                         audio_level = similarities.get('audio_level', 0.0)
                         buffer_fill = len(self.audio_buffer) / self.buffer_samples * 100
                         # 使用完整的行宽并清除行尾以避免文本重叠
@@ -509,7 +527,7 @@ class SystemAudioDetector:
                                 self.activity_text.set_bbox(dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8))
                         
                         # 更新波形图（降低更新频率以提高性能）
-                        if window_count % 3 == 0:  # 每3个窗口更新一次波形图
+                        if window_count % 5 == 0:  # 每5个窗口更新一次波形图，减少CPU使用
                             self._update_waveform_plot()
 
                     # 处理检测结果（无论是否在调试模式下都应该处理）
@@ -535,8 +553,9 @@ class SystemAudioDetector:
                         with self.buffer_lock:
                             self.audio_buffer.clear()
 
+                        # 增加等待时间以避免重复检测和降低CPU使用率
                         while len(self.audio_buffer) < self.window_samples and self.is_running:
-                            time.sleep(0.5)
+                            time.sleep(1.0)
 
                         print("\n继续监听..")
 
@@ -549,12 +568,13 @@ class SystemAudioDetector:
                             f"详细相似度: {', '.join([f'{k}:{v:.3f}' for k, v in similarities.items() if k != 'audio_level'])}")
 
                 else:
-                    # 使用完整的行宽并清除行尾以避免文本重叠
-                    status_text = f"等待音频数据... 窗口: {window_count}"
-                    # 确保文本不会重叠，使用固定宽度并清除多余字符
-                    print(f"\r{status_text:<120}", end="", flush=True)
+                    # 使用完整的行宽并清除行尾以避免文本重叠（降低更新频率）
+                    if window_count % 5 == 0:  # 每5个窗口更新一次状态显示
+                        status_text = f"等待音频数据... 窗口: {window_count}"
+                        # 确保文本不会重叠，使用固定宽度并清除多余字符
+                        print(f"\r{status_text:<120}", end="", flush=True)
 
-                time.sleep(0.3)  # 活动窗口更新间隔
+                time.sleep(0.5)  # 活动窗口更新间隔，增加到0.5秒以降低CPU使用率
 
         except KeyboardInterrupt:
             print("\n\n收到停止信号...")
