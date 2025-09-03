@@ -4,6 +4,7 @@ import uuid
 import re
 import json
 import os
+import argparse
 from datetime import datetime
 
 import httpx
@@ -66,6 +67,30 @@ def format_chunk_realtime(chunk, accumulated_text):
     return '\n'.join(result_lines)
 
 
+def get_cookie():
+    """Get cookie from command line argument or file"""
+    parser = argparse.ArgumentParser(description='HTTP request with cookie')
+    parser.add_argument('--cookie', type=str, help='Cookie string')
+    args, _ = parser.parse_known_args()
+
+    # If cookie provided via command line, use it
+    if args.cookie:
+        return args.cookie
+
+    # Otherwise, try to read from cookie.txt file
+    try:
+        if os.path.exists('cookie.txt'):
+            with open('cookie.txt', 'r', encoding='utf-8') as f:
+                cookie = f.read().strip()
+                if cookie:
+                    return cookie
+    except Exception as e:
+        print(f"读取cookie.txt文件时出错: {e}")
+
+    # If no cookie found, return None
+    return None
+
+
 def transport_factory(proxy: httpx.Proxy | None = None) -> httpx.BaseTransport:
     return CurlTransport(  # or AsyncCurlTransport
         proxy=proxy,
@@ -78,8 +103,11 @@ def make_request(content, session_id=None, conversation_history=None):
     if conversation_history is None:
         conversation_history = []
 
-    # Cookies as string
-    cookies = "ph_phc_LG7IJbVJqBsk584rbcKca0D5lV2vHguiijDrVji7yDM_posthog=%7B%22distinct_id%22%3A%22e1bd59cf-aa49-4267-917d-4977c1c57a2a%22%2C%22%24sesid%22%3A%5B1756881790185%2C%2201990e15-4410-7adf-b225-04ef81809e7e%22%2C1756877898768%5D%2C%22%24epp%22%3Atrue%2C%22%24initial_person_info%22%3A%7B%22r%22%3A%22https%3A%2F%2Flmarena.ai%2Fc%2Fbb92e9de-bb63-4bb5-9b6b-554e602280bd%3F__cf_chl_tk%3Dis0RibDM0Clb0Um24oti2SwqiFf2REt9LFawvsfRn0c-1756177700-1.0.1.1-Qra4mogOwtB1FluvkW5NQUis47MfEJdtGG28AoZwn38%22%2C%22u%22%3A%22https%3A%2F%2Flmarena.ai%2Fc%2Fbb92e9de-bb63-4bb5-9b6b-554e602280bd%22%7D%7D; _ga_L5C4D55WJJ=GS2.1.s1756880113$o14$g1$t1756881763$j60$l0$h0; _ga=GA1.1.1915898.1756177709; arena-auth-prod-v1=; arena-auth-prod-v1-code-verifier=; arena-auth-prod-v1.0=base64-eyJhY2Nlc3NfdG9rZW4iOiJleUpoYkdjaU9pSklVekkxTmlJc0ltdHBaQ0k2SWtOVFQwNHhkM05uU0hkRlNFTkNNbGNpTENKMGVYQWlPaUpLVjFRaWZRLmV5SnBjM01pT2lKb2RIUndjem92TDJoMWIyZDZiMlZ4ZW1OeVpIWnJkM1IyYjJScExuTjFjR0ZpWVhObExtTnZMMkYxZEdndmRqRWlMQ0p6ZFdJaU9pSTFNVE00T1dZek1pMHlNall5TFRRMk9EWXRPVGswTnkxbE1qbGtZV0l3WVdVd09Ua2lMQ0poZFdRaU9pSmhkWFJvWlc1MGFXTmhkR1ZrSWl3aVpYaHdJam94TnpVMk9EZzFNelUwTENKcFlYUWlPakUzTlRZNE9ERTNOVFFzSW1WdFlXbHNJam9pYldGdVoyOHlNVEEzTURsQVoyMWhhV3d1WTI5dElpd2ljR2h2Ym1VaU9pSWlMQ0poY0hCZmJXVjBZV1JoZEdFaU9uc2ljSEp2ZG1sa1pYSWlPaUpuYjI5bmJHVWlMQ0p3Y205MmFXUmxjbk1pT2xzaVoyOXZaMnhsSWwxOUxDSjFjMlZ5WDIxbGRHRmtZWFJoSWpwN0ltRjJZWFJoY2w5MWNtd2lPaUpvZEhSd2N6b3ZMMnhvTXk1bmIyOW5iR1YxYzJWeVkyOXVkR1Z1ZEM1amIyMHZZUzlCUTJjNGIyTkpXRmc0VkdoRVlURklaM2hSUkhabE1scHZkVlZhTFhSWVdVWjRZVEJFZWtnMWVGTlJlbXN5UmxJeU1HaDVkMEU5Y3prMkxXTWlMQ0psYldGcGJDSTZJbTFoYm1kdk1qRXdOekE1UUdkdFlXbHNMbU52YlNJc0ltVnRZV2xzWDNabGNtbG1hV1ZrSWpwMGNuVmxMQ0ptZFd4c1gyNWhiV1VpT2lKdFlXNW5ieUlzSW1sa0lqb2laVEZpWkRVNVkyWXRZV0UwT1MwME1qWTNMVGt4TjJRdE5EazNOMk14WXpVM1lUSmhJaXdpYVhOeklqb2lhSFIwY0hNNkx5OWhZMk52ZFc1MGN5NW5iMjluYkdVdVkyOXRJaXdpYkdGemRGOXNhVzVyWldSZmMzVndZV0poYzJWZmRYTmxjbDlwWkNJNkltWTJaalV3T1dObUxXRm1aV0l0TkRSaU55MDVOVE13TFRZMFl6WXpZMkZsWVdWaE1TSXNJbTVoYldVaU9pSnRZVzVuYnlJc0luQm9iMjVsWDNabGNtbG1hV1ZrSWpwbVlXeHpaU3dpY0dsamRIVnlaU0k2SW1oMGRIQnpPaTh2YkdnekxtZHZiMmRzWlhWelpYSmpiMjUwWlc1MExtTnZiUzloTDBGRFp6aHZZMGxZV0RoVWFFUmhNVWhuZUZGRWRtVXlXbTkxVlZvdGRGaFpSbmhoTUVSNlNEVjRVMUY2YXpKR1VqSXdhSGwzUVQxek9UWXRZeUlzSW5CeWIzWnBaR1Z5WDJsa0lqb2lNVEExTWpVNU16RTBOemMyTURNeU1qRTVNRFUwSWl3aWMzVmlJam9pTVRBMU1qVTVNekUwTnpjMk1ETXlNakU1TURVMEluMHNJbkp2YkdVaU9pSmhkWFJvWlc1MGFXTmhkR1ZrSWl3aVlXRnNJam9pWVdGc01TSXNJbUZ0Y2lJNlczc2liV1YwYUc5a0lqb2liMkYxZEdnaUxDSjBhVzFsYzNSaGJYQWlPakUzTlRZNE9ERTNOVFI5WFN3aWMyVnpjMmx2Ymw5cFpDSTZJalZoTWpCaVpqTXlMVGM1T0RFdE5EUXdOQzA1WVRFM0xUVmpNalF3TVdRelpURmlPQ0lzSW1selgyRnViMjU1Ylc5MWN5STZabUZzYzJWOS5jMlE0aUxBYnViRFp1NzRIS1drc0dEXzNpT2FaVFRoMW44bDRUem5JODRNIiwidG9rZW5fdHlwZSI6ImJlYXJlciIsImV4cGlyZXNfaW4iOjM2MDAsImV4cGlyZXNfYXQiOjE3NTY4ODUzNTQsInJlZnJlc2hfdG9rZW4iOiJxNDYzdmtkZTVucjIiLCJ1c2VyIjp7ImlkIjoiNTEzODlmMzItMjI2Mi00Njg2LTk5NDctZTI5ZGFiMGFlMDk5IiwiYXVkIjoiYXV0aGVudGljYXRlZCIsInJvbGUiOiJhdXRoZW50aWNhdGVkIiwiZW1haWwiOiJtYW5nbzIxMDcwOUBnbWFpbC5jb20iLCJlbWFpbF9jb25maXJtZWRfYXQiOiIyMDI1LTA5LTAzVDAxOjUxOjA2LjYxMDk1NFoiLCJwaG9uZSI6IiIsImNvbmZpcm1lZF9hdCI6IjIwMjUtMDktMDNUMDE6NTE6MDYuNjEwOTU0WiIsImxhc3Rfc2lnbl9pbl9hdCI6IjIwMjUtMDktMDNUMDY6NDI6MzQuOTA3ODMyWiIsImFwcF9tZXRhZGF0YSI6eyJwcm92aWRlciI6Imdvb2dsZSIsInByb3ZpZGVycyI6WyJnb29nbGUiXX0sInVzZXJfbWV0YWRhdGEiOnsiYXZhdGFyX3VybCI6Imh0dHBzOi8vbGgzLmdvb2dsZXVzZXJjb250ZW50LmNvbS9hL0FDZzhvY0lYWDhUaERhMUhneFFEdmUyWm91VVotdFhZRnhhMER6SDV4U1F6azJGUjIwaHl3QT1zOTYtYyIsImVtYWlsIjoibWFuZ28yMTA3MDlAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsImZ1bGxfbmFtZSI6Im1hbmdvIiwiaWQiOiJlMWJkNTljZi1hYTQ5LTQyNjctOTE3ZC00OTc3YzFjNTdhMmEiLCJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLCJsYXN0X2xpbmtlZF9zdXBhYmFzZV91c2VyX2lkIjoiNjg3MWFhZDYtMjA3Mi00MGY2LTk1OGItM2JmNGViMThiMDMwIiwibmFtZSI6Im1hbmdvIiwicGhvbmVfdmVyaWZpZWQiOmZhbHNlLCJwaWN0dXJlIjoiaHR0cHM6Ly9saDMuZ29vZ2xldXNlcmNvbnRlbnQuY29tL2EvQUNnOG9jSVhYOFRoRGExSGd4UUR2ZTJab3VVWi10WFlGeGEwRHpINXhTUXprMkZSM; arena-auth-prod-v1.1=jBoeXdBPXM5Ni1jIiwicHJvdmlkZXJfaWQiOiIxMDUyNTkzMTQ3NzYwMzIyMTkwNTQiLCJzdWIiOiIxMDUyNTkzMTQ3NzYwMzIyMTkwNTQifSwiaWRlbnRpdGllcyI6W3siaWRlbnRpdHlfaWQiOiI2Yjk1N2E4MS0zMmQ4LTRkY2QtOGY5Mi0zODFjNGYwNDVkZjgiLCJpZCI6IjEwNTI1OTMxNDc3NjAzMjIxOTA1NCIsInVzZXJfaWQiOiI1MTM4OWYzMi0yMjYyLTQ2ODYtOTk0Ny1lMjlkYWIwYWUwOTkiLCJpZGVudGl0eV9kYXRhIjp7ImF2YXRhcl91cmwiOiJodHRwczovL2xoMy5nb29nbGV1c2VyY29udGVudC5jb20vYS9BQ2c4b2NJWFg4VGhEYTFIZ3hRRHZlMlpvdVVaLXRYWUZ4YTBEekg1eFNRemsyRlIyMGh5d0E9czk2LWMiLCJlbWFpbCI6Im1hbmdvMjEwNzA5QGdtYWlsLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJmdWxsX25hbWUiOiJtYW5nbyIsImlzcyI6Imh0dHBzOi8vYWNjb3VudHMuZ29vZ2xlLmNvbSIsIm5hbWUiOiJtYW5nbyIsInBob25lX3ZlcmlmaWVkIjpmYWxzZSwicGljdHVyZSI6Imh0dHBzOi8vbGgzLmdvb2dsZXVzZXJjb250ZW50LmNvbS9hL0FDZzhvY0lYWDhUaERhMUhneFFEdmUyWm91VVotdFhZRnhhMER6SDV4U1F6azJGUjIwaHl3QT1zOTYtYyIsInByb3ZpZGVyX2lkIjoiMTA1MjU5MzE0Nzc2MDMyMjE5MDU0Iiwic3ViIjoiMTA1MjU5MzE0Nzc2MDMyMjE5MDU0In0sInByb3ZpZGVyIjoiZ29vZ2xlIiwibGFzdF9zaWduX2luX2F0IjoiMjAyNS0wOS0wM1QwMTo1MTowNi42MDY0MTFaIiwiY3JlYXRlZF9hdCI6IjIwMjUtMDktMDNUMDE6NTE6MDYuNjA2NDU3WiIsInVwZGF0ZWRfYXQiOiIyMDI1LTA5LTAzVDA2OjQyOjM0LjU2NTY4M1oiLCJlbWFpbCI6Im1hbmdvMjEwNzA5QGdtYWlsLmNvbSJ9XSwiY3JlYXRlZF9hdCI6IjIwMjUtMDktMDNUMDE6NTE6MDYuNjA0OTA3WiIsInVwZGF0ZWRfYXQiOiIyMDI1LTA5LTAzVDA2OjQyOjM0Ljk1NDE3NFoiLCJpc19hbm9ueW1vdXMiOmZhbHNlfSwicHJvdmlkZXJfdG9rZW4iOiJ5YTI5LkEwQVMzSDZOeEpMb1ZZcUVqTGJ3dkwxZXlpOVVQSUg5SEFweFptRWF4ZG5Lck53YjB3NE5oNW0tYUNTOThJcTY3aU1MbEZFdHY5Uk1FME80Q1JIXzdUTUlwb2FQR2RWeXg0QWxnb3ZRekpzeWxBQ2szVFZUV0RWOWZYc1FmVDhnN0I4YmNRRWhFOFFjSjdjbzI1UWRhVnZ1T25vNEV6UGkwZ2QtOTYtTHFLVnpBZXhPYmFpNF8wVjFjLWlLLU5ETDVubG0zUzl1b2FDZ1lLQVZnU0FSWVNGUUhHWDJNaVVzTjVxYUhmVGs4OXg5R2xwcV9nZncwMjA2IiwicHJvdmlkZXJfcmVmcmVzaF90b2tlbiI6IjEvLzA2WW1FaEpCSng3OHlDZ1lJQVJBQUdBWVNOd0YtTDlJcmJIZklHTjA2Rmp0RGhUeTlpNENZYTRZYUlZbEF0cWZQbThkZHhrYTYxVl9UU0RUV213M0t4Um5KR1UtaWV2TUFiTjgifQ; cf_clearance=8tEJTjoEgLkrbKSjlWgo5g5thZh1V8V.Ii_9oO2vuaI-1756881745-1.2.1.1-pkAYebQh4T1XOeJ0m9kY0zMJwoHYXpwAV1cojwe36DhRfs38maKDq1wBGg3XPQI4YPw617nOhtHmPx9Ss.5RRc6AFGgBj6ehmKvRdLHTDqsqrSLOU_4hTIzqwMbNbfhZjXTYEoVHO3kkiRdE7eJKgQyHaMQXn9Yutgl8x.mEnzEjSCb1zfBlRJrbNqBTK6eA_UzmT0ioKQKm3ZNx_Ignhf5GyZab5N3glf0iTnM6729oEiyiEbj_Ywu7TYFhsntT; __cf_bm=6M7Xyq.qDMFramSHdyMBLC3s_6Wtf9QXVlxKicbwePM-1756881711-1.0.1.1-5KSKmn750dlFb85RFXdcZBNoFu2iqapDdi1Ed6k4zk5KCnwz6Q8CZJZghGWeAhr2syOpIF9Ifb3LA3IFWkdpXeG.2h445KmvrjQiWb7ladU; sidebar_state=true"
+    # Get cookies from command line or file
+    cookies = get_cookie()
+    if not cookies:
+        raise ValueError(
+            "Cookie is required but not provided. Please provide cookie via --cookie argument or in cookie.txt file.")
 
     # Headers
     headers = {
@@ -155,11 +183,12 @@ def make_request(content, session_id=None, conversation_history=None):
         "mode": "direct",
         "modelAId": "983bc566-b783-4d28-b24c-3c8b08eb1086",
         "userMessageId": user_message_id,
+        "modelAMessageId": model_a_message_id,
         "messages": messages,
         "modality": "chat"
     }
 
-    proxy_url = "http://127.0.0.1:7890"
+    proxy_url = "http://127.0.0.1:18901"
     print("\nthinking...")
     try:
         with Client(transport=CurlTransport(
@@ -172,6 +201,11 @@ def make_request(content, session_id=None, conversation_history=None):
                     json=data,
                     timeout=300.0
             ) as response:
+                # Check if response has an error status code
+                if response.status_code >= 400:
+                    print(f"Error: Received HTTP {response.status_code} response")
+                    return None
+
                 # Process SSE stream with typewriter effect and markdown formatting
                 accumulated_text = ""
                 assistant_response = ""
@@ -310,7 +344,7 @@ def conversation_loop(session_id=None, conversation_history=None):
 
     while True:
         try:
-            user_input = input("你: ").strip()
+            user_input = input("\n你: ").strip()
             if not user_input:
                 continue
             command_result = handle_special_commands(user_input, conversation_history, session_id)
@@ -358,7 +392,7 @@ if __name__ == "__main__":
         conversation_history = []
 
         # Send initial message
-        print("你: " + initial_content)
+        print("\n你: " + initial_content)
         print("\n助手: ", end='', flush=True)
         result = make_request(initial_content, session_id, conversation_history)
 
