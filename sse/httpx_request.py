@@ -160,7 +160,7 @@ def make_request(content, session_id=None, conversation_history=None):
     }
 
     proxy_url = "http://127.0.0.1:7890"
-
+    print("\nthinking...")
     try:
         with Client(transport=CurlTransport(
                 proxy=proxy_url, impersonate="chrome", default_headers=True,
@@ -310,7 +310,7 @@ def conversation_loop(session_id=None, conversation_history=None):
 
     while True:
         try:
-            user_input = input("\n你: ").strip()
+            user_input = input("你: ").strip()
             if not user_input:
                 continue
             command_result = handle_special_commands(user_input, conversation_history, session_id)
@@ -341,8 +341,6 @@ def conversation_loop(session_id=None, conversation_history=None):
 
 def start_conversation():
     """Start a multi-turn conversation session"""
-    print("=== 多轮对话模式 ===")
-    print("输入 'quit' 或 'exit' 退出对话")
     print("输入 'clear' 清空对话历史")
     print("-" * 50)
 
@@ -360,7 +358,7 @@ if __name__ == "__main__":
         conversation_history = []
 
         # Send initial message
-        print("\n你: " + initial_content)
+        print("你: " + initial_content)
         print("\n助手: ", end='', flush=True)
         result = make_request(initial_content, session_id, conversation_history)
 
