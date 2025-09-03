@@ -1,16 +1,14 @@
-import copy
-import sys
-import uuid
-import re
+import argparse
 import json
 import os
-import argparse
+import re
+import sys
+import uuid
 from datetime import datetime
 
 import httpx
-
-from httpx import Client, AsyncClient
-from httpx_curl_cffi import CurlTransport, AsyncCurlTransport, CurlOpt
+from httpx import Client
+from httpx_curl_cffi import CurlTransport
 
 
 def format_as_markdown(text):
