@@ -56,9 +56,10 @@ def format_chunk_realtime(chunk, accumulated_text):
         # Handle list items
         elif re.match(r'^\s*[*+-]\s', line) or re.match(r'^\s*\d+\.\s', line):
             # Add newline before list if not at start and previous line isn't empty
-            if result_lines and result_lines[-1].strip() != '' and not re.match(r'^\s*[*+-]\s',
-                                                                                result_lines[-1]) and not re.match(
-                r'^\s*\d+\.\s', result_lines[-1]):
+            if (result_lines and
+                    result_lines[-1].strip() != '' and not
+                    re.match(r'^\s*[*+-]\s', result_lines[-1]) and not
+                    re.match(r'^\s*\d+\.\s', result_lines[-1])):
                 result_lines.append('')
             result_lines.append(line)
         else:
@@ -288,9 +289,9 @@ def make_request(content, session_id=None, conversation_history=None):
         return None
 
 
-def save_conversation_history(conversation_history, session_id):
+def save_conversation_history(conv_history, sess_id):
     """Save conversation history to chat directory"""
-    if not conversation_history:
+    if not conv_history:
         return
 
     # Create chat directory if it doesn't exist
@@ -298,15 +299,15 @@ def save_conversation_history(conversation_history, session_id):
     os.makedirs(chat_dir, exist_ok=True)
 
     # Generate filename with timestamp
-    filename = f"{session_id}.json"
+    filename = f"{sess_id}.json"
     filepath = os.path.join(chat_dir, filename)
 
     # Prepare conversation data
     chat_data = {
-        "session_id": session_id,
+        "session_id": sess_id,
         "timestamp": datetime.now().isoformat(),
-        "conversation_history": conversation_history,
-        "message_count": len(conversation_history)
+        "conversation_history": conv_history,
+        "message_count": len(conv_history)
     }
 
     # Save to file
@@ -318,56 +319,56 @@ def save_conversation_history(conversation_history, session_id):
         print(f"保存对话失败: {e}")
 
 
-def handle_special_commands(user_input, conversation_history, session_id):
+def handle_special_commands(user_input, conv_history, sess_id):
     """Handle special commands like quit, exit, clear"""
     if user_input.lower() in ['quit', 'exit', '退出']:
         # Save conversation before exit
-        if conversation_history and session_id:
-            save_conversation_history(conversation_history, session_id)
+        if conv_history and sess_id:
+            save_conversation_history(conv_history, sess_id)
         print("再见！")
         return "exit"
     elif user_input.lower() in ['clear', '清空']:
         # Save conversation before clearing
-        if conversation_history and session_id:
-            save_conversation_history(conversation_history, session_id)
+        if conv_history and sess_id:
+            save_conversation_history(conv_history, sess_id)
         print("对话历史已清空")
         return "clear"
     return None
 
 
-def conversation_loop(session_id=None, conversation_history=None):
+def conversation_loop(current_session_id=None, current_conversation_history=None):
     """Main conversation loop"""
-    if session_id is None:
-        session_id = None
-    if conversation_history is None:
-        conversation_history = []
+    if current_session_id is None:
+        current_session_id = None
+    if current_conversation_history is None:
+        current_conversation_history = []
 
     while True:
         try:
             user_input = input("\n你: ").strip()
             if not user_input:
                 continue
-            command_result = handle_special_commands(user_input, conversation_history, session_id)
+            command_result = handle_special_commands(user_input, current_conversation_history, current_session_id)
             if command_result == "exit":
                 break
             elif command_result == "clear":
-                session_id = None
-                conversation_history = []
+                current_session_id = None
+                current_conversation_history = []
                 continue
             print("\n助手: ", end='', flush=True)
-            result = make_request(user_input, session_id, conversation_history)
+            result = make_request(user_input, current_session_id, current_conversation_history)
 
             if result:
-                session_id = result["session_id"]
-                conversation_history = result["conversation_history"]
+                current_session_id = result["session_id"]
+                current_conversation_history = result["conversation_history"]
             else:
                 print("请求失败，请重试")
 
         except KeyboardInterrupt:
             print("\n\n对话已中断")
             # Save conversation before exit
-            if conversation_history and session_id:
-                save_conversation_history(conversation_history, session_id)
+            if current_conversation_history and current_session_id:
+                save_conversation_history(current_conversation_history, current_session_id)
             break
         except Exception as e:
             print(f"\n发生错误: {e}")
@@ -388,20 +389,20 @@ if __name__ == "__main__":
         print("输入 'clear' 清空对话历史")
         print("-" * 50)
 
-        session_id = None
-        conversation_history = []
+        main_session_id = None
+        main_conversation_history = []
 
         # Send initial message
         print("\n你: " + initial_content)
         print("\n助手: ", end='', flush=True)
-        result = make_request(initial_content, session_id, conversation_history)
+        result = make_request(initial_content, main_session_id, main_conversation_history)
 
         if result:
-            session_id = result["session_id"]
-            conversation_history = result["conversation_history"]
+            main_session_id = result["session_id"]
+            main_conversation_history = result["conversation_history"]
 
         # Continue with interactive conversation
-        conversation_loop(session_id, conversation_history)
+        conversation_loop(main_session_id, main_conversation_history)
     else:
         # Start multi-turn conversation
         start_conversation()
