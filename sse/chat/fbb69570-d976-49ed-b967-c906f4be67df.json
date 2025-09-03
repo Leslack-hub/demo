@@ -1,0 +1,74 @@
+{
+  "session_id": "fbb69570-d976-49ed-b967-c906f4be67df",
+  "modelAMessageId": "3b270d94-0a95-48de-800e-0f4b50053397",
+  "timestamp": "2025-09-03T15:36:30.315392",
+  "conversation_history": [
+    {
+      "id": "28013c36-b4a0-4c39-9c79-d290c8e05161",
+      "role": "user",
+      "content": "hello",
+      "experimental_attachments": [],
+      "parentMessageIds": [],
+      "participantPosition": "a",
+      "evaluationSessionId": "fbb69570-d976-49ed-b967-c906f4be67df",
+      "modelId": null,
+      "status": "pending",
+      "failureReason": null,
+      "createdAt": "2025-09-03T15:36:02.092336+00:00",
+      "updatedAt": "2025-09-03T15:36:02.092342+00:00",
+      "metadata": null
+    },
+    {
+      "id": "d2b027c1-c109-4583-8b56-3e13ad54a5e3",
+      "evaluationSessionId": "fbb69570-d976-49ed-b967-c906f4be67df",
+      "parentMessageIds": [
+        "28013c36-b4a0-4c39-9c79-d290c8e05161"
+      ],
+      "content": "Hey there! 👋  \nHow can I help today? Got a question, need ideas, or working on something specific?",
+      "modelId": "983bc566-b783-4d28-b24c-3c8b08eb1086",
+      "status": "success",
+      "failureReason": null,
+      "metadata": null,
+      "createdAt": "2025-09-03T15:36:02.090871+00:00",
+      "updatedAt": "2025-09-03T15:36:02.092282+00:00",
+      "role": "assistant",
+      "experimental_attachments": [],
+      "participantPosition": "a"
+    },
+    {
+      "id": "fa9114a3-4766-470e-a6cd-e6f264c3a21a",
+      "role": "user",
+      "content": "我上一个问题是什么？",
+      "experimental_attachments": [],
+      "parentMessageIds": [
+        "d2b027c1-c109-4583-8b56-3e13ad54a5e3"
+      ],
+      "participantPosition": "a",
+      "evaluationSessionId": "fbb69570-d976-49ed-b967-c906f4be67df",
+      "modelId": null,
+      "status": "pending",
+      "failureReason": null,
+      "createdAt": "2025-09-03T15:36:20.697855+00:00",
+      "updatedAt": "2025-09-03T15:36:20.697868+00:00",
+      "metadata": null
+    },
+    {
+      "id": "224cf28d-4e88-4957-8555-feba97cfd7b5",
+      "evaluationSessionId": "fbb69570-d976-49ed-b967-c906f4be67df",
+      "parentMessageIds": [
+        "fa9114a3-4766-470e-a6cd-e6f264c3a21a"
+      ],
+      "content": "你上一个消息是：“hello”。那是一句问候，不是一个问题。  \n有什么想问我的吗？🙂",
+      "modelId": "983bc566-b783-4d28-b24c-3c8b08eb1086",
+      "status": "success",
+      "failureReason": null,
+      "metadata": null,
+      "createdAt": "2025-09-03T15:36:20.533987+00:00",
+      "updatedAt": "2025-09-03T15:36:20.697796+00:00",
+      "role": "assistant",
+      "experimental_attachments": [],
+      "participantPosition": "a"
+    }
+  ],
+  "message_count": 4
+}
