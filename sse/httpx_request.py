@@ -110,29 +110,27 @@ def make_request(content, session_id=None, conversation_history=None):
 
     # Headers
     headers = {
-        "Host": "lmarena.ai",
-        "Connection": "keep-alive",
-        "sec-ch-ua-full-version-list": '"Not;A=Brand";v="99.0.0.0", "Google Chrome";v="139.0.7258.155", "Chromium";v="139.0.7258.155"',
-        "sec-ch-ua-platform": '"macOS"',
-        "sec-ch-ua": '"Not;A=Brand";v="99", "Google Chrome";v="139", "Chromium";v="139"',
-        "sec-ch-ua-bitness": '"64"',
-        "sec-ch-ua-model": '""',
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-arch": '"arm"',
-        "sec-ch-ua-full-version": '"139.0.7258.155"',
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36",
-        "sec-ch-ua-platform-version": '"26.0.0"',
-        "Accept": "*/*",
-        "Origin": "https://lmarena.ai",
-        "Sec-Fetch-Site": "same-origin",
-        "Sec-Fetch-Mode": "cors",
-        "Sec-Fetch-Dest": "empty",
-        "Referer": "https://lmarena.ai/?mode=direct",
-        "Accept-Language": "zh-CN,zh;q=0.9",
-        "Cache-Control": "no-cache",
-        "Postman-Token": "52271d3c-9a6b-4faa-9f3a-719cbb660ad6",
-        "Content-Type": "text/plain;charset=UTF-8",
-        "Cookie": cookies
+        'Host': 'lmarena.ai',
+        'Connection': 'keep-alive',
+        'sec-ch-ua-full-version-list': '"Chromium";v="140.0.7339.80", "Not=A?Brand";v="24.0.0.0", "Google Chrome";v="140.0.7339.80"',
+        'sec-ch-ua-platform': '"macOS"',
+        'sec-ch-ua': '"Chromium";v="140", "Not=A?Brand";v="24", "Google Chrome";v="140"',
+        'sec-ch-ua-bitness': '"64"',
+        'sec-ch-ua-model': '""',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-arch': '"arm"',
+        'sec-ch-ua-full-version': '"140.0.7339.80"',
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+        'Content-Type': 'text/plain;charset=UTF-8',
+        'sec-ch-ua-platform-version': '"26.0.0"',
+        'Accept': '*/*',
+        'Origin': 'https://lmarena.ai',
+        'Sec-Fetch-Site': 'same-origin',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Dest': 'empty',
+        'Referer': 'https://lmarena.ai/?mode=direct',
+        'Accept-Language': 'zh-CN,zh;q=0.9',
+        'Cookie': cookies,
     }
 
     # JSON data
@@ -187,6 +185,7 @@ def make_request(content, session_id=None, conversation_history=None):
         "modality": "chat"
     }
 
+    print(headers)
     proxy_url = "http://127.0.0.1:18901"
     print("\nthinking...")
     try:
