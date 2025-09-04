@@ -185,8 +185,7 @@ def make_request(content, session_id=None, conversation_history=None):
         "modality": "chat"
     }
 
-    print(headers)
-    proxy_url = "http://127.0.0.1:18901"
+    proxy_url = "http://127.0.0.1:7890"
     print("\nthinking...")
     try:
         with Client(transport=CurlTransport(
