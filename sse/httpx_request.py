@@ -178,7 +178,10 @@ def make_request(content, session_id=None, conversation_history=None):
     data = {
         "id": session_id,
         "mode": "direct",
-        "modelAId": "983bc566-b783-4d28-b24c-3c8b08eb1086",
+        # gpt-5-high
+        # "modelAId": "983bc566-b783-4d28-b24c-3c8b08eb1086",
+        # claude-4-1-opus
+        "modelAId": "96ae95fd-b70d-49c3-91cc-b58c7da1090b",
         "userMessageId": user_message_id,
         "modelAMessageId": model_a_message_id,
         "messages": messages,
