@@ -1,7 +1,9 @@
+# -*- coding: utf-8 -*-
 import argparse
 import json
 import os
 import re
+import readline
 import sys
 import uuid
 from datetime import datetime
@@ -66,6 +68,38 @@ def format_chunk_realtime(chunk, accumulated_text):
     return '\n'.join(result_lines)
 
 
+def check_cookie_expiry(cookie):
+    """Check if the cookie contains required authentication tokens"""
+    try:
+        # Check for required authentication tokens
+        required_tokens = ['arena-auth-prod-v1.0', '__cf_bm', 'cf_clearance']
+        missing_tokens = []
+        
+        for token in required_tokens:
+            if token not in cookie:
+                missing_tokens.append(token)
+        
+        if missing_tokens:
+            return False, f"Cookie缺少必要的认证token: {', '.join(missing_tokens)}"
+        
+        # Check if cookie looks fresh (contains recent cf_clearance)
+        if '__cf_bm=' in cookie:
+            # Extract timestamp from __cf_bm token (rough estimation)
+            cf_bm_start = cookie.find('__cf_bm=') + len('__cf_bm=')
+            cf_bm_end = cookie.find('-', cf_bm_start)
+            if cf_bm_end > cf_bm_start:
+                try:
+                    # This is a rough check, __cf_bm format may vary
+                    return True, "Cookie包含必要的认证信息"
+                except:
+                    pass
+        
+        return True, "Cookie格式正确，包含基本认证信息"
+        
+    except Exception as e:
+        return True, f"Cookie验证时出错: {e}"
+
+
 def get_cookie():
     """Get cookie from command line argument or file"""
     parser = argparse.ArgumentParser(description='HTTP request with cookie')
@@ -82,7 +116,21 @@ def get_cookie():
             with open('cookie.txt', 'r', encoding='utf-8') as f:
                 cookie = f.read().strip()
                 if cookie:
-                    return cookie
+                    # Basic cookie validation
+                    if 'arena-auth-prod' in cookie:
+                        # Check cookie expiry
+                        is_valid, message = check_cookie_expiry(cookie)
+                        print(f"Cookie状态: {message}")
+                        if not is_valid:
+                            print("建议: 请更新cookie.txt文件中的cookie")
+                        return cookie
+                    else:
+                        print("警告: cookie.txt中的cookie可能无效，缺少必要的认证信息")
+                        return cookie
+                else:
+                    print("错误: cookie.txt文件为空")
+        else:
+            print("错误: 未找到cookie.txt文件，请创建该文件并添加有效的cookie")
     except Exception as e:
         print(f"读取cookie.txt文件时出错: {e}")
 
@@ -203,7 +251,29 @@ def make_request(content, session_id=None, conversation_history=None):
             ) as response:
                 # Check if response has an error status code
                 if response.status_code >= 400:
-                    print(f"Error: Received HTTP {response.status_code} response")
+                    error_msg = f"Error: Received HTTP {response.status_code} response"
+                    if response.status_code == 403:
+                        error_msg += "\n可能的原因：\n1. Cookie已过期，请更新cookie.txt文件\n2. 请求被服务器拒绝，请检查请求头信息\n3. IP被限制访问"
+                        error_msg += "\n\n获取新cookie的步骤："
+                        error_msg += "\n1. 打开浏览器访问 https://lmarena.ai"
+                        error_msg += "\n2. 登录你的账户"
+                        error_msg += "\n3. 按F12打开开发者工具"
+                        error_msg += "\n4. 在Network标签页中刷新页面"
+                        error_msg += "\n5. 找到任意请求，复制Cookie请求头的值"
+                        error_msg += "\n6. 将完整的Cookie值粘贴到cookie.txt文件中"
+                    elif response.status_code == 401:
+                        error_msg += "\n认证失败，请检查cookie是否正确"
+                    elif response.status_code == 429:
+                        error_msg += "\n请求过于频繁，请稍后再试"
+                    
+                    try:
+                        response_text = response.text
+                        if response_text:
+                            error_msg += f"\n服务器响应: {response_text[:200]}..."
+                    except:
+                        pass
+                    
+                    print(error_msg)
                     return None
 
                 # Process SSE stream with typewriter effect and markdown formatting
@@ -335,12 +405,45 @@ def handle_special_commands(user_input, conv_history, sess_id):
     return None
 
 
+def setup_readline():
+    """Setup readline for command history and editing"""
+    # Enable history file in current directory
+    history_file = ".chatbot_history"
+    try:
+        readline.read_history_file(history_file)
+    except (FileNotFoundError, PermissionError, OSError) as e:
+        # 如果文件不存在、没有权限或格式错误，忽略错误
+        if isinstance(e, OSError) and e.errno == 22:  # Invalid argument
+            # 历史文件可能损坏，删除并重新创建
+            try:
+                os.remove(history_file)
+                print(f"历史文件已损坏，已重新创建: {history_file}")
+            except:
+                pass
+        pass  # History file doesn't exist yet or permission denied
+    
+    # Set history length
+    readline.set_history_length(1000)
+    
+    # Save history on exit
+    import atexit
+    def save_history():
+        try:
+            readline.write_history_file(history_file)
+        except PermissionError:
+            pass  # Ignore permission errors when saving
+    atexit.register(save_history)
+
+
 def conversation_loop(current_session_id=None, current_conversation_history=None):
     """Main conversation loop"""
     if current_session_id is None:
         current_session_id = None
     if current_conversation_history is None:
         current_conversation_history = []
+    
+    # Setup readline for history support
+    setup_readline()
 
     while True:
         try:
@@ -376,6 +479,7 @@ def conversation_loop(current_session_id=None, current_conversation_history=None
 def start_conversation():
     """Start a multi-turn conversation session"""
     print("输入 'clear' 清空对话历史")
+    print("提示: 使用上下键可以浏览历史输入")
     print("-" * 50)
 
     conversation_loop()
